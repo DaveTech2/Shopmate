@@ -1,0 +1,47 @@
+name: shopmate
+version: "0.1.0"
+manifest_version: 2
+api_version: 1
+description: >-
+  Shopping agent for Hermes — browse product sections, search live prices with
+  photos (Google Shopping via SerpAPI), manage a cart, pay with Paystack in
+  local currencies or with crypto (NOWPayments), and track delivery.
+author: xleeking98
+license: MIT
+homepage: https://github.com/OWNER/shopmate
+tags: [shopping, commerce, payments, paystack, crypto, africa]
+requires_hermes: ">=0.21.5"
+provides_tools:
+  - shop_categories
+  - shop_search
+  - shop_product
+  - cart_add
+  - cart_remove
+  - cart_view
+  - cart_clear
+  - delivery_quote
+  - payment_options
+  - checkout
+  - order_status
+# Keys are optional: without them the plugin runs on its demo catalog and
+# refuses to take payment. They are read through Hermes' secret scope.
+config_schema:
+  SERPAPI_API_KEY:
+    type: str
+    default: ""
+    secret: true
+    description: "SerpAPI key for live Google Shopping prices and images (https://serpapi.com/manage-api-key)"
+  PAYSTACK_SECRET_KEY:
+    type: str
+    default: ""
+    secret: true
+    description: "Paystack secret key (sk_test_… or sk_live_…) for checkout links (https://dashboard.paystack.com/#/settings/developers)"
+  NOWPAYMENTS_API_KEY:
+    type: str
+    default: ""
+    secret: true
+    description: "NOWPayments API key for crypto checkout — USDT, USDC, BTC, ETH, SOL… (https://account.nowpayments.io)"
+  SHOPMATE_COUNTRY:
+    type: str
+    default: "ng"
+    description: "Google Shopping country code for live search"

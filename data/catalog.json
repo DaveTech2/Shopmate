@@ -1,0 +1,433 @@
+{
+ "categories": [
+  {
+   "id": "groceries",
+   "name": "Groceries & Food"
+  },
+  {
+   "id": "phones",
+   "name": "Phones & Tablets"
+  },
+  {
+   "id": "electronics",
+   "name": "Electronics"
+  },
+  {
+   "id": "fashion",
+   "name": "Fashion"
+  },
+  {
+   "id": "home-kitchen",
+   "name": "Home & Kitchen"
+  },
+  {
+   "id": "beauty",
+   "name": "Beauty & Personal Care"
+  },
+  {
+   "id": "baby",
+   "name": "Baby Products"
+  },
+  {
+   "id": "health",
+   "name": "Health & Wellness"
+  },
+  {
+   "id": "sports",
+   "name": "Sports & Fitness"
+  },
+  {
+   "id": "automotive",
+   "name": "Automotive"
+  }
+ ],
+ "products": [
+  {
+   "id": "d-gro1",
+   "title": "Indomie Instant Noodles Chicken 70g (Carton of 40)",
+   "category": "groceries",
+   "price": 7800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Indomie%20Instant%20Noodles%20Chic",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gro2",
+   "title": "Golden Penny Semovita 5kg",
+   "category": "groceries",
+   "price": 8200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Golden%20Penny%20Semovita%205kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gro3",
+   "title": "Mama Gold Rice 25kg",
+   "category": "groceries",
+   "price": 62000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Mama%20Gold%20Rice%2025kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gro4",
+   "title": "Peak Full Cream Milk Powder 400g",
+   "category": "groceries",
+   "price": 4300,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Peak%20Full%20Cream%20Milk%20Powder%20",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gro5",
+   "title": "Dangote Sugar 1kg",
+   "category": "groceries",
+   "price": 1900,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Dangote%20Sugar%201kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gro6",
+   "title": "Kings Vegetable Oil 3L",
+   "category": "groceries",
+   "price": 9500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Kings%20Vegetable%20Oil%203L",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gro7",
+   "title": "Milo Refill 500g",
+   "category": "groceries",
+   "price": 4100,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Milo%20Refill%20500g",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gro8",
+   "title": "Bigi Cola 50cl (Pack of 12)",
+   "category": "groceries",
+   "price": 3600,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Bigi%20Cola%2050cl",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pho1",
+   "title": "Tecno Spark 30 128GB",
+   "category": "phones",
+   "price": 189000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Tecno%20Spark%2030%20128GB",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pho2",
+   "title": "Infinix Hot 50 256GB",
+   "category": "phones",
+   "price": 229000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Infinix%20Hot%2050%20256GB",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pho3",
+   "title": "Samsung Galaxy A16 128GB",
+   "category": "phones",
+   "price": 245000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Samsung%20Galaxy%20A16%20128GB",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pho4",
+   "title": "Apple iPhone 15 128GB",
+   "category": "phones",
+   "price": 1150000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Apple%20iPhone%2015%20128GB",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pho5",
+   "title": "itel A70 64GB",
+   "category": "phones",
+   "price": 98000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=itel%20A70%2064GB",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-ele1",
+   "title": "Oraimo FreePods 4 Earbuds",
+   "category": "electronics",
+   "price": 32000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Oraimo%20FreePods%204%20Earbuds",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-ele2",
+   "title": "Oraimo Traveler 27000mAh Power Bank",
+   "category": "electronics",
+   "price": 28500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Oraimo%20Traveler%2027000mAh%20Pow",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-ele3",
+   "title": "Hisense 43-inch Smart TV",
+   "category": "electronics",
+   "price": 345000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Hisense%2043-inch%20Smart%20TV",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-ele4",
+   "title": "HP 15 Laptop Core i5 8GB/512GB",
+   "category": "electronics",
+   "price": 720000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=HP%2015%20Laptop%20Core%20i5%208GB/512",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-ele5",
+   "title": "Binatone 16-inch Standing Fan",
+   "category": "electronics",
+   "price": 42000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Binatone%2016-inch%20Standing%20Fa",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-fas1",
+   "title": "Men's Senator Kaftan Fabric (5 yards)",
+   "category": "fashion",
+   "price": 28000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Men%27s%20Senator%20Kaftan%20Fabric",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-fas2",
+   "title": "Ankara Print Fabric (6 yards)",
+   "category": "fashion",
+   "price": 15000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Ankara%20Print%20Fabric",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-fas3",
+   "title": "Unisex Canvas Sneakers",
+   "category": "fashion",
+   "price": 22000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Unisex%20Canvas%20Sneakers",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-fas4",
+   "title": "Women's Classic Handbag",
+   "category": "fashion",
+   "price": 35000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Women%27s%20Classic%20Handbag",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hom1",
+   "title": "Binatone 1.7L Electric Kettle",
+   "category": "home-kitchen",
+   "price": 18500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Binatone%201.7L%20Electric%20Kettl",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hom2",
+   "title": "Scanfrost 20L Microwave",
+   "category": "home-kitchen",
+   "price": 98000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Scanfrost%2020L%20Microwave",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hom3",
+   "title": "Non-stick Cookware Set (7 pieces)",
+   "category": "home-kitchen",
+   "price": 45000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Non-stick%20Cookware%20Set",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hom4",
+   "title": "Thermocool 150L Chest Freezer",
+   "category": "home-kitchen",
+   "price": 410000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Thermocool%20150L%20Chest%20Freeze",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-bea1",
+   "title": "Nivea Body Lotion 400ml",
+   "category": "beauty",
+   "price": 5200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Nivea%20Body%20Lotion%20400ml",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-bea2",
+   "title": "Shea Butter Pure Unrefined 500g",
+   "category": "beauty",
+   "price": 4500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Shea%20Butter%20Pure%20Unrefined%205",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-bea3",
+   "title": "Dove Beauty Bar (Pack of 4)",
+   "category": "beauty",
+   "price": 6800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Dove%20Beauty%20Bar",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-bea4",
+   "title": "Arimis Petroleum Jelly 250ml",
+   "category": "beauty",
+   "price": 1800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Arimis%20Petroleum%20Jelly%20250ml",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-bab1",
+   "title": "Molfix Diapers Size 4 (Jumbo Pack)",
+   "category": "baby",
+   "price": 14500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Molfix%20Diapers%20Size%204",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-bab2",
+   "title": "Pampers Baby Wipes (Pack of 3)",
+   "category": "baby",
+   "price": 7200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Pampers%20Baby%20Wipes",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-bab3",
+   "title": "Cerelac Wheat 1kg",
+   "category": "baby",
+   "price": 9800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Cerelac%20Wheat%201kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hea1",
+   "title": "Digital Thermometer",
+   "category": "health",
+   "price": 4500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Digital%20Thermometer",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hea2",
+   "title": "Omron Blood Pressure Monitor",
+   "category": "health",
+   "price": 48000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Omron%20Blood%20Pressure%20Monitor",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hea3",
+   "title": "First Aid Kit (Home)",
+   "category": "health",
+   "price": 12000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=First%20Aid%20Kit",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hea4",
+   "title": "Vitamin C 1000mg (30 tablets)",
+   "category": "health",
+   "price": 5500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Vitamin%20C%201000mg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-spo1",
+   "title": "Adjustable Dumbbell Set 20kg",
+   "category": "sports",
+   "price": 65000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Adjustable%20Dumbbell%20Set%2020kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-spo2",
+   "title": "Yoga Mat 6mm",
+   "category": "sports",
+   "price": 12500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Yoga%20Mat%206mm",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-spo3",
+   "title": "Size 5 Football",
+   "category": "sports",
+   "price": 9500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Size%205%20Football",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-aut1",
+   "title": "Car Phone Holder (Dashboard)",
+   "category": "automotive",
+   "price": 7500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Car%20Phone%20Holder",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-aut2",
+   "title": "Tyre Inflator Portable",
+   "category": "automotive",
+   "price": 38000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Tyre%20Inflator%20Portable",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-aut3",
+   "title": "Engine Oil 5W-30 4L",
+   "category": "automotive",
+   "price": 28000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Engine%20Oil%205W-30%204L",
+   "merchant": "Demo catalog"
+  }
+ ]
+}

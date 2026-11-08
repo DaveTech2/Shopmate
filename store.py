@@ -1,0 +1,78 @@
+"""Small JSON store for carts, orders and cached live products.
+
+State lives in the plugin's data directory, never in the plugin tree.
+"""
+
+import json
+import os
+import tempfile
+import threading
+from pathlib import Path
+
+_LOCK = threading.Lock()
+_PLUGIN_NAME = "shopmate"
+
+
+def _data_dir() -> Path:
+    try:  # Hermes-provided per-plugin data dir
+        from plugins.plugin_utils import plugin_data_dir  # type: ignore
+
+        try:
+            d = Path(plugin_data_dir(_PLUGIN_NAME))
+        except TypeError:
+            d = Path(plugin_data_dir())
+    except Exception:
+        home = os.environ.get("HERMES_HOME") or str(Path.home() / ".hermes")
+        d = Path(home) / "plugin-data" / _PLUGIN_NAME
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+_PATH = None
+
+
+def _path() -> Path:
+    global _PATH
+    if _PATH is None:
+        _PATH = _data_dir() / "state.json"
+    return _PATH
+
+
+def _load() -> dict:
+    p = _path()
+    if not p.exists():
+        return {"carts": {}, "orders": {}, "products": {}}
+    try:
+        data = json.loads(p.read_text("utf-8"))
+    except Exception:
+        data = {}
+    for k in ("carts", "orders", "products"):
+        data.setdefault(k, {})
+    return data
+
+
+def _save(data: dict) -> None:
+    p = _path()
+    fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".state-")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def transact(fn):
+    """Run fn(data) under the lock, persist, and return its result."""
+    with _LOCK:
+        data = _load()
+        result = fn(data)
+        # Keep the live-product cache bounded.
+        prods = data["products"]
+        if len(prods) > 2000:
+            for k in list(prods)[: len(prods) - 2000]:
+                prods.pop(k, None)
+        _save(data)
+        return result
+
+
+def read(fn):
+    with _LOCK:
+        return fn(_load())
