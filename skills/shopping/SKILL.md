@@ -1,7 +1,7 @@
 ---
 name: shopping
 description: Find, price, deliver and sell products in chat.
-version: 0.2.2
+version: 0.2.3
 author: DaveTech2
 license: MIT
 metadata:
@@ -16,12 +16,14 @@ The customer should only have to say what they want. You do the finding, compari
 
 ## The flow
 
-1. **Locate them first.** Ask once: "Share your location pin (or a Google Maps link) so I can price delivery to your
-   door — or just tell me your area." Pass a pin as `lat`/`lon`, a link or pasted text as `shared_location`, or a
-   name as `city` to `set_location`. It returns their nearest pickup stops. From then on every product carries both
-   the doorstep fee and the cheaper pickup-stop option.
-2. **Understand the request.** Pull out the product, budget, size/variant and urgency from what they said. Ask at
-   most one short question if something essential is missing (e.g. storage size for a phone).
+1. **Read the whole first message.** Customers usually say it all at once: "I'm in London, I need an iPhone 17
+   Pro Max". If they named a place, call `set_location` with it straight away (city, area or address as `city`,
+   a pin as `lat`/`lon`, a link as `shared_location`) and go straight to searching. Never ask for something they
+   already told you.
+2. **Only if no place was given,** ask once: "Where should I deliver — share your location pin or tell me your
+   area?" Search while you wait if they named a product, and add delivery fees once you have the place.
+   Ask at most one more short question, and only if something essential is missing (e.g. storage size when
+   prices differ a lot). Otherwise pick the most common variant and say so.
 3. **Find it.** Call `shop_search`. Present the `best_match` as a confirmation card, plus up to 2 alternatives:
 
    ```

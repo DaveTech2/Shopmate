@@ -73,8 +73,14 @@ def _resolve_offline(city: str = None, state: str = None) -> dict:
             continue
         if k in PLACES:
             return dict(PLACES[k], key=k)
-        for key, p in PLACES.items():  # loose match: "Lekki Phase 1" → lekki
-            if key in k.split(",")[0] or k in key:
+        head = k.split(",")[0].strip()
+        # Whole-word match only ("Lekki Phase 1" → lekki), so "London" never matches "Ondo".
+        hits = [key for key in PLACES if re.search(r"(?<![a-z])%s(?![a-z])" % re.escape(key), head)]
+        if hits:
+            key = max(hits, key=len)  # most specific: "victoria island" over "victoria"
+            return dict(PLACES[key], key=key)
+        for key, p in PLACES.items():  # typed prefix: "port harc" → port harcourt
+            if len(head) >= 4 and key.startswith(head):
                 return dict(p, key=key)
     return None
 

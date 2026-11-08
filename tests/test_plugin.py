@@ -57,6 +57,10 @@ def fake_http(url, data=None, headers=None, method=None):
     if "serpapi.com" in url and "gl=us" in url:
         return {"shopping_results": [{"title": "Apple AirPods Pro 2", "price": "$189.99", "extracted_price": 189.99,
                 "thumbnail": "https://img.example/ap.jpg", "source": "Best Buy", "product_link": "https://x/ap", "product_id": "ap"}]}
+    if "engine=google_shopping" in url and "iphone" in url and "gl=gb" in url:
+        return {"shopping_results": [{"title": "Apple iPhone 17 Pro Max 256GB", "price": "£1,199.00",
+                "extracted_price": 1199.0, "thumbnail": "https://img.example/ip17.jpg", "source": "Currys",
+                "product_link": "https://x/ip17", "product_id": "ip17"}]}
     if "serpapi.com" in url and "gl=gb" in url:
         return {"shopping_results": []}
     if "serpapi.com" in url:
@@ -68,6 +72,8 @@ def fake_http(url, data=None, headers=None, method=None):
     if "open.er-api.com" in url:
         if "/latest/USD" in url:
             return {"result": "success", "rates": {"USD": 1, "NGN": 1540, "GBP": 0.78, "GHS": 15}}
+        if "/latest/GBP" in url:
+            return {"result": "success", "rates": {"GBP": 1, "USD": 1.28, "NGN": 1980}}
         return {"result": "success", "rates": {"NGN": 1, "USD": 0.00065, "GHS": 0.0098, "KES": 0.084, "GBP": 0.0005}}
     if url.endswith("/transaction/initialize"):
         assert body["currency"] in ("NGN", "GHS", "USD") and isinstance(body["amount"], int), body
@@ -209,6 +215,14 @@ r = call(ctx, "shop_search", query="tecno spark 30", conv="ldn")  # gl=gb empty 
 assert r["results"] and r["results"][0]["delivery_display"], r
 r = call(ctx, "set_location", city="Nowhereville Zzz", conv="x"); assert "error" in r
 print("nyc airpods delivery:", ap["delivery_display"])
+# --- "I'm in London, I need an iPhone 17 Pro Max"
+r = call(ctx, "set_location", city="London", conv="uk"); assert r["country"] == "GB" and r["local_currency"] == "GBP", r
+r = call(ctx, "shop_search", query="iphone 17 pro max", conv="uk")
+ip = r["results"][0]; assert ip["currency"] == "GBP" and ip["merchant"] == "Currys" and ip["delivery_display"].startswith("£"), ip
+call(ctx, "cart_add", product_id=ip["id"], conv="uk")
+r = call(ctx, "checkout", full_name="Jo", email="jo@example.com", phone="+44 20", address="1 Baker St", conv="uk")
+assert r["summary"]["pay_with"] == "Paystack (USD)" and "exchange_rate" in r["summary"], r
+print("london iphone:", ip["price_display"], "+ delivery", ip["delivery_display"], "=", ip["total_delivered"], "| pay", r["summary"]["amount_to_pay"])
 # --- live key refuses demo items
 SECRETS["PAYSTACK_SECRET_KEY"] = "sk_live_x"
 call(ctx, "cart_add", product_id="d-pho1")
