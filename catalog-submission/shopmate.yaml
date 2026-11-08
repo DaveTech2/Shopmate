@@ -1,6 +1,6 @@
 # Add this file as plugin-catalog/shopmate.yaml in a PR to NousResearch/hermes-agent
 name: shopmate
-repo: https://github.com/OWNER/shopmate
+repo: https://github.com/DaveTech2/shopmate
 sha: REPLACE_WITH_FULL_40_CHAR_COMMIT_SHA
 version: "0.1.0"
 requires_hermes: ">=0.21.5"

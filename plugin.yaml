@@ -7,9 +7,9 @@ description: >-
   (live Google Shopping prices and photos), shows price plus the delivery fee to
   your location, and on your yes takes payment by Paystack (local currencies) or
   crypto (NOWPayments) and tracks delivery.
-author: xleeking98
+author: DaveTech2
 license: MIT
-homepage: https://github.com/OWNER/shopmate
+homepage: https://github.com/DaveTech2/shopmate
 tags: [shopping, commerce, payments, paystack, crypto, africa]
 requires_hermes: ">=0.21.5"
 provides_tools:
