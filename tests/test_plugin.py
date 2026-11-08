@@ -99,6 +99,22 @@ assert earbuds["size"] == "small" and earbuds["delivery_fee"] < near["results"][
 r = call(ctx, "shop_search", query="tecno phone"); assert r["results"] and "Tecno" in r["results"][0]["title"]
 r = call(ctx, "shop_product", product_id="d-pho1"); assert "delivery_express" in r["product"]
 r = call(ctx, "set_location", city="Accra", conv="gh"); assert r["zone"] == "international"
+# precise location from a shared pin / maps link
+r = call(ctx, "set_location", lat=6.4480, lon=3.4730, conv="pin")
+assert r["precise"] and r["location"].startswith("Lekki") and r["nearest_pickup_stops"][0]["id"] == "lk1", r
+r = call(ctx, "set_location", shared_location="https://www.google.com/maps/place/x/@9.0765,7.3986,15z", conv="link")
+assert r["precise"] and r["nearest_pickup_stops"], r
+pin = call(ctx, "shop_search", query="rice", conv="pin")["results"][0]
+assert "pickup_option" in pin and "Lekki Phase 1" in pin["pickup_option"], pin
+assert int(pin["total_with_pickup"].replace("₦", "").replace(",", "")) < int(pin["total_delivered"].replace("₦", "").replace(",", ""))
+r = call(ctx, "pickup_stops", conv="pin"); assert r["stops"][0]["map"].startswith("https://maps.google.com")
+assert call(ctx, "shop_search", query="rice", conv="gh2") and "pickup_option" not in call(ctx, "shop_search", query="rice", conv="gh")["results"][0]
+call(ctx, "cart_add", product_id="d-ele1", conv="pin")
+q = call(ctx, "delivery_quote", conv="pin"); assert q["pickup"]["fee"] < q["doorstep"]["fee"], q
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080", delivery_method="pickup", conv="pin")
+assert r["status"] == "needs_confirmation" and "Pickup: Lekki Phase 1" in r["summary"]["deliver_to"], r
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080", conv="pin")
+assert r["missing"] == ["address"], r
 print("lekki rice", near["results"][0]["delivery_display"], "| kano rice", far["results"][0]["delivery_display"], "| lekki earbuds", earbuds["delivery_display"])
 r = call(ctx, "cart_add", product_id="d-gro3", quantity=2); assert r["subtotal"] == 124000
 v = call(ctx, "cart_view"); assert v["delivering_to"] == "Lekki, Lagos" and "total_delivered" in v

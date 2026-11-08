@@ -91,6 +91,32 @@ def _ship(items, loc, speed="standard", currency="NGN"):
     return q
 
 
+def _nearest_stop(loc):
+    stops = delivery.nearest_stops(loc, 1)
+    if not stops or stops[0]["distance_from_customer_km"] > 40 or loc.get("country", "NG") != "NG":
+        return None
+    return stops[0]
+
+
+def _pickup(stop, items, speed="standard", currency="NGN"):
+    q = delivery.pickup_quote(_origin(), stop, items, speed)
+    if currency != "NGN":
+        q["fee"] = round(q["fee"] * providers.fx_rate("NGN", currency), 2)
+    q["fee_display"] = _money(q["fee"], currency)
+    q["to"] = "Pickup: " + stop["name"]
+    return q
+
+
+def _resolve_input(args):
+    """City/area name, coordinates, or a shared maps link / location pin."""
+    if args.get("lat") is not None and args.get("lon") is not None:
+        return delivery.from_coords(float(args["lat"]), float(args["lon"]))
+    c = delivery.parse_coords(args.get("shared_location") or args.get("city") or "")
+    if c:
+        return delivery.from_coords(*c)
+    return delivery.resolve(args.get("city"), args.get("state"))
+
+
 def _annotate(products, loc, speed="standard"):
     """Add delivery fee + total to each product so the customer sees the full price."""
     for p in products:
@@ -101,6 +127,11 @@ def _annotate(products, loc, speed="standard"):
             q = _ship([(p, 1)], loc, speed, cur)
             p["delivery_fee"], p["delivery_display"], p["delivery_eta"] = q["fee"], q["fee_display"], q["eta"]
             p["total_delivered"] = _money(p["price"] + q["fee"], cur)
+            stop = _nearest_stop(loc)
+            if stop:
+                pq = _pickup(stop, [(p, 1)], speed, cur)
+                p["pickup_option"] = "%s at %s (%.1f km from you)" % (pq["fee_display"], stop["name"], stop["distance_from_customer_km"])
+                p["total_with_pickup"] = _money(p["price"] + pq["fee"], cur)
         else:
             p["delivery_display"] = "set your location to see delivery fee"
     return products
@@ -170,18 +201,37 @@ def shop_product(args, **kwargs):
 @safe
 def set_location(args, **kwargs):
     cid = _cid(kwargs)
-    loc = delivery.resolve(args.get("city"), args.get("state"))
+    loc = _resolve_input(args)
     if not loc:
-        return _err("I couldn't place that location. Ask for the nearest big city or the state.",
+        return _err("I couldn't place that location. Ask the customer to share their location pin / Google Maps link, "
+                    "or name the nearest big city or the state.",
                     examples=["Lekki", "Ikeja", "Abuja", "Port Harcourt", "Kano", "Enugu", "Accra"])
-    loc = dict(loc, area=args.get("city"))
+    loc = dict(loc, area=None if loc.get("precise") else args.get("city"))
     store.transact(lambda d: d.setdefault("locations", {}).__setitem__(cid, loc))
     o = _origin()
     sample = delivery.quote(o, loc, [({"title": "", "category": "phones"}, 1)])
     return _ok(location=loc["name"] + (", " + loc["state"] if loc.get("state") else ""), country=loc["country"],
                ships_from=o["name"], distance_km=sample["distance_km"], zone=sample["band"],
-               typical_eta=sample["eta"], small_item_fee=_naira(sample["fee"]),
-               note="Every product will now show its delivery fee to this location.")
+               typical_eta=sample["eta"], doorstep_small_item_fee=_naira(sample["fee"]),
+               precise=bool(loc.get("precise")),
+               nearest_pickup_stops=[{"id": s["id"], "name": s["name"], "km_from_you": s["distance_from_customer_km"],
+                                      "hours": s.get("hours"), "sample": s["sample"]}
+                                     for s in (delivery.nearest_stops(loc, 3) if loc["country"] == "NG" else [])
+                                     if s["distance_from_customer_km"] <= 40],
+               note="Every product will now show doorstep delivery and, where available, a cheaper pickup option.")
+
+
+@safe
+def pickup_stops(args, **kwargs):
+    loc = _resolve_input(args) if (args.get("city") or args.get("lat") is not None or args.get("shared_location")) \
+        else store.read(lambda d: _location(d, _cid(kwargs)))
+    if not loc:
+        return _err("No location yet; ask the customer to share their location or name their area.")
+    stops = delivery.nearest_stops(loc, int(args.get("limit") or 3))
+    return _ok(near=loc["name"], stops=[{"id": s["id"], "name": s["name"], "state": s["state"], "hours": s.get("hours"),
+                                         "km_from_you": s["distance_from_customer_km"],
+                                         "map": "https://maps.google.com/?q=%s,%s" % (s["lat"], s["lon"])} for s in stops],
+               sample_data=stops[0]["sample"] if stops else None)
 
 
 # ---------- cart ----------
@@ -256,14 +306,18 @@ def delivery_quote(args, **kwargs):
         return _err("speed must be standard or express")
     cid = _cid(kwargs)
     (lines, subtotal), loc = store.read(lambda d: (_cart_summary(d, cid), _location(d, cid)))
-    if args.get("city"):
-        loc = delivery.resolve(args["city"], args.get("state")) or loc
+    if args.get("city") or args.get("lat") is not None or args.get("shared_location"):
+        loc = _resolve_input(args) or loc
     if not loc:
-        return _err("No location yet; ask the customer for their city or area, then call set_location.")
+        return _err("No location yet; ask the customer to share their location or name their area, then call set_location.")
     cur = _base_currency(lines)
     items = [(l, l["qty"]) for l in lines] or [({"title": "", "category": "phones"}, 1)]
-    q = _ship(items, loc, speed, cur)
-    return _ok(speed=speed, **q)
+    out = {"speed": speed, "doorstep": _ship(items, loc, speed, cur)}
+    stop = delivery.find_stop(args["pickup_stop_id"]) if args.get("pickup_stop_id") else _nearest_stop(loc)
+    if stop:
+        out["pickup"] = dict(_pickup(stop, items, speed, cur), stop_id=stop["id"],
+                             km_from_you=round(delivery._km(loc, stop), 1))
+    return _ok(**out)
 
 
 @safe
@@ -281,15 +335,24 @@ def payment_options(args, **kwargs):
 def checkout(args, **kwargs):
     cid = _cid(kwargs)
     saved = store.read(lambda d: _location(d, cid))
-    if not args.get("city") and saved:
-        args = dict(args, city=saved.get("area") or saved["name"])
+    dmethod = (args.get("delivery_method") or "doorstep").lower()
+    if dmethod not in ("doorstep", "pickup"):
+        return _err("delivery_method must be doorstep or pickup")
+    has_place = args.get("city") or args.get("lat") is not None or args.get("shared_location")
+    loc = (_resolve_input(args) if has_place else None) or saved
+    if not loc:
+        return _err("No delivery location; ask the customer to share their location or name their area.")
+    stop = None
+    if dmethod == "pickup":
+        stop = delivery.find_stop(args["pickup_stop_id"]) if args.get("pickup_stop_id") else _nearest_stop(loc)
+        if not stop:
+            return _err("No pickup stop near this location; use doorstep delivery.")
+        args = dict(args, address=args.get("address") or "Pickup at " + stop["name"])
+    args = dict(args, city=args.get("city") or loc.get("area") or loc["name"])
     required = ["full_name", "email", "phone", "address", "city"]
     missing = [k for k in required if not str(args.get(k) or "").strip()]
     if missing:
         return _err("Missing delivery details", missing=missing)
-    loc = delivery.resolve(args["city"], args.get("state")) or saved
-    if not loc:
-        return _err("I couldn't place that city for delivery; ask for the nearest big city or state.")
     if not _EMAIL.match(args["email"].strip()):
         return _err("Email address looks invalid")
     speed = args.get("speed") or "standard"
@@ -301,7 +364,8 @@ def checkout(args, **kwargs):
     if not lines:
         return _err("Cart is empty")
     base = _base_currency(lines)
-    q = _ship([(l, l["qty"]) for l in lines], loc, speed, base)
+    items = [(l, l["qty"]) for l in lines]
+    q = _pickup(stop, items, speed, base) if stop else _ship(items, loc, speed, base)
     fee, eta = q["fee"], q["eta"]
     total = round(subtotal + fee, 2)
 
@@ -320,8 +384,8 @@ def checkout(args, **kwargs):
 
     summary = dict(items=[{"title": l["title"], "qty": l["qty"], "line_total": _money(l["line_total"], base)} for l in lines],
                    subtotal=_money(subtotal, base), delivery_fee=_money(fee, base), delivery_eta=eta,
-                   total=_money(total, base), deliver_to="%s, %s, %s" % (args["full_name"], args["address"], q["to"]),
-                   delivery_distance_km=q["distance_km"],
+                   total=_money(total, base), deliver_to=("%s — %s" % (args["full_name"], q["to"])) if stop else "%s, %s, %s" % (args["full_name"], args["address"], q["to"]),
+                   delivery_method=dmethod, delivery_distance_km=q["distance_km"],
                    pay_with=("Paystack (%s)" % pay_cur) if method == "paystack" else "Crypto (%s)" % coin,
                    amount_to_pay=_money(charge, pay_cur) + ("" if method == "paystack" else " worth of " + coin.upper()))
     if pay_cur != base:
@@ -340,7 +404,9 @@ def checkout(args, **kwargs):
 
     order_id = "SM-" + time.strftime("%y%m%d") + "-" + uuid.uuid4().hex[:6].upper()
     order = dict(order_id=order_id, created_at=int(time.time()), conversation_id=cid,
-                 customer={k: args[k] for k in required}, speed=speed, items=lines, currency=base,
+                 customer={k: args[k] for k in required}, speed=speed, delivery_method=dmethod,
+                 pickup_stop=stop and {"id": stop["id"], "name": stop["name"]},
+                 location={"lat": loc["lat"], "lon": loc["lon"], "name": loc["name"]}, items=lines, currency=base,
                  subtotal=subtotal, delivery_fee=fee, total=total, eta=eta, payment_method=method,
                  pay_currency=pay_cur, charge=charge, payment_status="pending", delivery_status="awaiting_payment")
     if method == "paystack":

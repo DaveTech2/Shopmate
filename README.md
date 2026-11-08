@@ -18,7 +18,7 @@ hermes plugins enable shopmate
 
 | Step | Tools |
 |---|---|
-| Save delivery location; every product then shows its delivery fee | `set_location` |
+| Locate the customer from a shared location pin, Google/Apple Maps link, or area name; every product then shows its doorstep fee and nearest-pickup option | `set_location`, `pickup_stops` |
 | Browse 10 sections (groceries, phones, electronics, fashion, home & kitchen, beauty, baby, health, sports, automotive) | `shop_categories`, `shop_search` |
 | Live product search — real prices, images, merchant names (Google Shopping) | `shop_search`, `shop_product` |
 | Cart | `cart_add`, `cart_remove`, `cart_view`, `cart_clear` |
@@ -54,6 +54,14 @@ Shown on **every product** once the customer's location is known. Fee = distance
 your dispatch city, using built-in coordinates for all 36 Nigerian states + FCT, major cities/areas, and key African
 cities) + a size surcharge (small / medium / large / bulky, inferred from the product). Express = 1.8× and a day faster.
 Edit `RATES` and `SIZE_SURCHARGE` in `delivery.py` to match your logistics partner.
+
+**Doorstep or pickup.** When the customer shares a location pin or maps link, the fee is priced to their exact
+coordinates. Shopmate also finds the closest pickup stops and offers collection there at 60% of the doorstep fee
+(`PICKUP_DISCOUNT`). The bundled stops in `data/pickup_stops.json` are **samples** — put your real stops in
+`pickup_stops.json` in the plugin's data directory (same format) and they replace the samples.
+
+Location is never detected silently: the plugin has no access to the customer's device. It works from what the
+customer shares in chat. Coordinates are matched to the nearest known place offline — no geocoding service is called.
 With a live Paystack key, Shopmate refuses to charge for demo-catalog items.
 
 ## Disclosures (catalog rule 13)
@@ -63,7 +71,8 @@ With a live Paystack key, Shopmate refuses to charge for demo-catalog items.
   when converting currencies).
 - **Data sent**: the search query to SerpAPI; customer email, amount, currency, order id, item count and city to
   Paystack; amount in USD, coin, order id and a short description to NOWPayments.
-- **Local storage**: carts, orders (including customer name, email, phone and address) and cached search results live
+- **Local storage**: carts, saved delivery locations (coordinates if shared), orders (including customer name, email,
+  phone and address) and cached search results live
   in `state.json` in the plugin's data directory — never in the plugin tree.
 - **No** shell commands, background processes, reads outside the plugin's data, stored credentials or telemetry.
 - Payments need explicit user confirmation (`checkout` refuses to create a payment without `confirm=true`).

@@ -31,13 +31,29 @@ SHOP_SEARCH = {
 SET_LOCATION = {
     "name": "set_location",
     "description": (
-        "Save where the customer wants delivery (city/area and optionally state). Do this early: once set, every "
-        "product shown includes its delivery fee and total delivered price to this location."
+        "Locate the customer for delivery. Best: their shared location pin or Google Maps link (exact doorstep "
+        "coordinates) via lat/lon or shared_location; otherwise a city/area name. Do this early: once set, every "
+        "product shows the doorstep delivery fee, the nearest pickup stop and the total price. Returns the nearest pickup stops."
     ),
     "parameters": {"type": "object", "properties": {
         "city": {"type": "string", "description": "City or area, e.g. 'Lekki', 'Wuse', 'Port Harcourt', 'Accra'"},
         "state": {"type": "string", "description": "Optional state, e.g. 'Lagos', 'Rivers', 'FCT'"},
-    }, "required": ["city"]},
+        "lat": {"type": "number", "description": "Latitude from a shared location pin"},
+        "lon": {"type": "number", "description": "Longitude from a shared location pin"},
+        "shared_location": {"type": "string", "description": "A shared location / Google or Apple Maps link / 'lat,lon' text, pasted as-is"},
+    }},
+}
+
+PICKUP_STOPS = {
+    "name": "pickup_stops",
+    "description": "List the pickup stops closest to the customer (saved location, or a given place), with distance, hours and a map link.",
+    "parameters": {"type": "object", "properties": {
+        "city": {"type": "string"},
+        "lat": {"type": "number", "description": "Latitude from a shared location pin"},
+        "lon": {"type": "number", "description": "Longitude from a shared location pin"},
+        "shared_location": {"type": "string", "description": "A shared location / Google or Apple Maps link / 'lat,lon' text, pasted as-is"},
+        "limit": {"type": "integer", "description": "How many stops (default 3)"},
+    }},
 }
 
 SHOP_PRODUCT = {
@@ -74,10 +90,15 @@ CART_CLEAR = {
 
 DELIVERY_QUOTE = {
     "name": "delivery_quote",
-    "description": "Quote the delivery fee (distance + item size) and delivery time for the current cart to the saved location or a given city.",
+    "description": "Quote doorstep delivery and pickup-stop collection (fee from distance + item size, and ETA) for the current cart.",
     "parameters": {"type": "object", "properties": {
         "city": {"type": "string", "description": "Optional; defaults to the saved location"},
         "state": {"type": "string"},
+        "lat": {"type": "number", "description": "Latitude from a shared location pin"},
+        "lon": {"type": "number", "description": "Longitude from a shared location pin"},
+        "shared_location": {"type": "string", "description": "A shared location / Google or Apple Maps link / 'lat,lon' text, pasted as-is"},
+        "delivery_method": {"type": "string", "enum": ["doorstep", "pickup"], "description": "Doorstep (default) or collect at a pickup stop (cheaper)"},
+        "pickup_stop_id": {"type": "string", "description": "Pickup stop id; defaults to the nearest"},
         "speed": {"type": "string", "enum": ["standard", "express"]},
     }},
 }
@@ -99,15 +120,17 @@ CHECKOUT = {
         "full_name": {"type": "string"},
         "email": {"type": "string"},
         "phone": {"type": "string"},
-        "address": {"type": "string", "description": "Street address and landmark"},
+        "address": {"type": "string", "description": "Street address and landmark (not needed for pickup)"},
         "city": {"type": "string", "description": "Optional if set_location was called"},
         "state": {"type": "string"},
+        "delivery_method": {"type": "string", "enum": ["doorstep", "pickup"], "description": "Doorstep (default) or collect at a pickup stop (cheaper)"},
+        "pickup_stop_id": {"type": "string", "description": "Pickup stop id; defaults to the nearest"},
         "speed": {"type": "string", "enum": ["standard", "express"]},
         "payment_method": {"type": "string", "enum": ["paystack", "crypto"], "description": "Default paystack"},
         "currency": {"type": "string", "description": "Paystack currency: NGN, GHS, KES, ZAR, USD, XOF, EGP or RWF (default: cart currency)"},
         "crypto_coin": {"type": "string", "description": "For crypto: usdt, usdc, btc, eth, sol, bnb, trx, ltc (default usdt on TRC20)"},
         "confirm": {"type": "boolean", "description": "true only after the user approved the summary"},
-    }, "required": ["full_name", "email", "phone", "address"]},
+    }, "required": ["full_name", "email", "phone"]},
 }
 
 ORDER_STATUS = {

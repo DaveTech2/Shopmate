@@ -89,3 +89,74 @@ def quote(origin: dict, dest: dict, items, speed: str = "standard") -> dict:
     return {"fee": fee, "eta": eta, "band": band.replace("_", " "), "distance_km": round(km),
             "breakdown": {"distance": int(round(distance_fee * (EXPRESS["multiplier"] if speed == "express" else 1))),
                           "size": int(round(size_fee * (EXPRESS["multiplier"] if speed == "express" else 1)))}}
+
+
+# ---------- precise location & pickup stops ----------
+
+PICKUP_DISCOUNT = 0.6   # pickup costs 60% of doorstep to the same area
+_COORD = re.compile(r"(-?\d{1,2}\.\d{2,})\s*[, ]\s*(-?\d{1,3}\.\d{2,})")
+
+
+def parse_coords(text: str):
+    """Pull lat,lon out of a shared location: '6.4474, 3.4723', Google/Apple Maps links (@lat,lon / q=lat,lon / ll=)."""
+    if not text:
+        return None
+    t = str(text).replace("%2C", ",")
+    for pat in (r"@(-?\d+\.\d+),(-?\d+\.\d+)", r"[?&](?:q|query|ll|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)",
+                r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)"):
+        m = re.search(pat, t)
+        if m:
+            break
+    else:
+        m = _COORD.search(t)
+    if not m:
+        return None
+    lat, lon = float(m.group(1)), float(m.group(2))
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return lat, lon
+
+
+def nearest_place(lat: float, lon: float) -> dict:
+    """Name a coordinate by its closest known city/area (offline)."""
+    here = {"lat": lat, "lon": lon}
+    key, p = min(PLACES.items(), key=lambda kv: _km(here, kv[1]))
+    return dict(p, key=key, near_km=round(_km(here, p) / ROAD_FACTOR, 1))
+
+
+def from_coords(lat: float, lon: float) -> dict:
+    near = nearest_place(lat, lon)
+    name = near["name"] if near["near_km"] <= 15 else "%s area (%.0f km away)" % (near["name"], near["near_km"])
+    return {"name": name, "state": near.get("state"), "country": near["country"], "lat": lat, "lon": lon,
+            "precise": True, "nearest_known": near["name"]}
+
+
+def _load_stops():
+    try:
+        from .store import _data_dir
+        custom = _data_dir() / "pickup_stops.json"
+        if custom.exists():
+            return json.loads(custom.read_text("utf-8"))["stops"], False
+    except Exception:
+        pass
+    return json.loads((Path(__file__).parent / "data" / "pickup_stops.json").read_text("utf-8"))["stops"], True
+
+
+def nearest_stops(loc: dict, n: int = 3):
+    stops, sample = _load_stops()
+    ranked = sorted(stops, key=lambda s: _km(loc, s))[:n]
+    return [dict(s, distance_from_customer_km=round(_km(loc, s), 1), sample=sample) for s in ranked]
+
+
+def find_stop(stop_id: str):
+    stops, sample = _load_stops()
+    for s in stops:
+        if s["id"] == stop_id:
+            return dict(s, sample=sample)
+    return None
+
+
+def pickup_quote(origin, stop, items, speed="standard"):
+    q = quote(origin, dict(stop, country=origin["country"]), items, speed)
+    q["fee"] = int(math.ceil(q["fee"] * PICKUP_DISCOUNT / 100.0) * 100)
+    return q

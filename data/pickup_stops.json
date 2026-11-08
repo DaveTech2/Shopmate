@@ -1,0 +1,133 @@
+{
+ "_note": "SAMPLE pickup points for demos. Put your real ones in <plugin data dir>/pickup_stops.json (same format).",
+ "stops": [
+  {
+   "id": "lk1",
+   "name": "Lekki Phase 1 pickup point",
+   "state": "Lagos",
+   "lat": 6.4474,
+   "lon": 3.4723,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "aj1",
+   "name": "Ajah pickup point",
+   "state": "Lagos",
+   "lat": 6.4682,
+   "lon": 3.5852,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "vi1",
+   "name": "Victoria Island pickup point",
+   "state": "Lagos",
+   "lat": 6.4281,
+   "lon": 3.4219,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "ik1",
+   "name": "Ikeja pickup point",
+   "state": "Lagos",
+   "lat": 6.6018,
+   "lon": 3.3515,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "yb1",
+   "name": "Yaba pickup point",
+   "state": "Lagos",
+   "lat": 6.5095,
+   "lon": 3.3711,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "su1",
+   "name": "Surulere pickup point",
+   "state": "Lagos",
+   "lat": 6.5,
+   "lon": 3.35,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "ikd",
+   "name": "Ikorodu pickup point",
+   "state": "Lagos",
+   "lat": 6.6194,
+   "lon": 3.5105,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "fs1",
+   "name": "Festac pickup point",
+   "state": "Lagos",
+   "lat": 6.4667,
+   "lon": 3.2833,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "ws1",
+   "name": "Wuse pickup point",
+   "state": "FCT",
+   "lat": 9.07,
+   "lon": 7.47,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "gw1",
+   "name": "Gwarinpa pickup point",
+   "state": "FCT",
+   "lat": 9.11,
+   "lon": 7.4,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "ph1",
+   "name": "Port Harcourt GRA pickup point",
+   "state": "Rivers",
+   "lat": 4.8156,
+   "lon": 7.0498,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "ib1",
+   "name": "Ibadan Ring Road pickup point",
+   "state": "Oyo",
+   "lat": 7.3775,
+   "lon": 3.947,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "en1",
+   "name": "Enugu Independence Layout pickup point",
+   "state": "Enugu",
+   "lat": 6.4584,
+   "lon": 7.5464,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "kn1",
+   "name": "Kano Nassarawa pickup point",
+   "state": "Kano",
+   "lat": 12.0022,
+   "lon": 8.592,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "bn1",
+   "name": "Benin City Ring Road pickup point",
+   "state": "Edo",
+   "lat": 6.335,
+   "lon": 5.6037,
+   "hours": "Mon-Sat 9am-6pm"
+  },
+  {
+   "id": "ab1",
+   "name": "Abeokuta pickup point",
+   "state": "Ogun",
+   "lat": 7.1475,
+   "lon": 3.3619,
+   "hours": "Mon-Sat 9am-6pm"
+  }
+ ]
+}
