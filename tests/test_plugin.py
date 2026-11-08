@@ -128,7 +128,7 @@ assert sorted(manifest["provides_tools"]) == sorted(ctx.tools), "manifest/tools 
 assert "shopping" in ctx.skills and ":" not in "shopping"
 
 # --- demo mode (no keys)
-r = call(ctx, "shop_categories"); assert len(r["categories"]) == 10 and r["live_search"] is False
+r = call(ctx, "shop_categories"); assert len(r["categories"]) == 24 and r["live_search"] is False
 SETTINGS["auto_locate"] = False
 r = call(ctx, "shop_search", category="phones"); assert r["count"] == 5 and "Demo" in r["note"]
 assert "ask_location" in r and "set your location" in r["results"][0]["delivery_display"]

@@ -1,7 +1,7 @@
 ---
 name: shopping
 description: Find, price, deliver and sell products in chat.
-version: 0.3.0
+version: 0.3.1
 author: DaveTech2
 license: MIT
 metadata:
@@ -52,8 +52,10 @@ real price, the delivery fee to where they are, the total, and a way to pay.
 
 ## Anything they want
 
-Any product works the same way: phones, sneakers (ask the size), groceries, beauty, baby items, over-the-counter
-health products like vitamin C or paracetamol. Pass what they said as the query; the tools work out the delivery
+Any product works the same way: phones, sneakers and shoes (ask the size), clothes, groceries and drinks, toiletries
+(toothpaste, toilet roll, pads, deodorant), household and cleaning supplies, over-the-counter pharmacy items like
+vitamin C or paracetamol, baby products, toys, computers, gaming, office supplies, pet supplies, furniture, tools,
+books and more. `shop_categories` lists the 24 sections for customers who want to browse. Pass what they said as the query; the tools work out the delivery
 size from the product.
 
 Don't order prescription-only medicines, controlled drugs, weapons, or anything illegal where the customer is.

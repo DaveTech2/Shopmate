@@ -35,10 +35,13 @@ SIZE_SURCHARGE = RATES["size"]
 EXPRESS = {"multiplier": 1.8, "days_faster": 1}
 ROAD_FACTOR = 1.3  # straight-line → road distance
 
-_BULKY = re.compile(r"\b(freezer|fridge|refrigerator|washing machine|generator|air ?conditioner|\bac\b|mattress|sofa|wardrobe|\d{2,3}\s*(kg)|chest)\b", re.I)
-_LARGE = re.compile(r"\b(tv|television|microwave|fan|cookware|dumbbell|inflator|engine oil|carton|bag of|\d+\s*l\b|5kg|10kg|laptop|monitor|printer)\b", re.I)
-_SMALL = re.compile(r"\b(earbuds?|airpods|phone holder|thermometer|charger|cable|lotion|cream|soap|wipes|vitamins?|tablets|capsules|supplement|paracetamol|watch|case|sneakers?|shoes?|trainers|sandals|slides|t-?shirt|shirt|jeans|dress|cap|hat|socks|perfume|lipstick|phone|iphone|smartphone|book)\b", re.I)
-_CAT_SIZE = {"groceries": "medium", "phones": "small", "electronics": "medium", "fashion": "small", "home-kitchen": "large",
+_BULKY = re.compile(r"\b(freezer|fridge|refrigerator|washing machine|generator|air ?conditioner|\bac\b|mattress|sofa|wardrobe|3-seater|\d{2,3}\s*(kg)|chest)\b", re.I)
+_LARGE = re.compile(r"\b(toilet roll|pack of 12|suitcase|console|playstation|router|chair|drill|tool box|mop|tv|television|microwave|fan|cookware|dumbbell|inflator|engine oil|carton|bag of|(?:[3-9]|\d{2,})\s*l\b|5kg|10kg|laptop|monitor|printer)\b", re.I)
+_SMALL = re.compile(r"\b(earbuds?|airpods|phone holder|thermometer|charger|cable|lotion|cream|soap|wipes|vitamins?|tablets|capsules|supplement|paracetamol|watch|case|sneakers?|shoes?|trainers|sandals|slides|t-?shirt|shirt|jeans|dress|cap|hat|socks|perfume|lipstick|phone|iphone|smartphone|book|toothpaste|toothbrush|deodorant|roll-on|razor|shampoo|pads|sanitizer|masks?|wallet|sunglasses|mouse|flash drive|pens|calculator|notebook)\b", re.I)
+_CAT_SIZE = {"toiletries": "small", "household": "medium", "pharmacy": "small", "drinks": "medium",
+             "footwear": "small", "kids-toys": "medium", "computing": "small", "gaming": "medium", "office": "small",
+             "pets": "medium", "jewelry-watches": "small", "garden-tools": "medium", "furniture": "bulky", "books": "small",
+             "groceries": "medium", "phones": "small", "electronics": "medium", "fashion": "small", "home-kitchen": "large",
              "beauty": "small", "baby": "medium", "health": "small", "sports": "medium", "automotive": "medium"}
 
 

@@ -39,6 +39,62 @@
   {
    "id": "automotive",
    "name": "Automotive"
+  },
+  {
+   "id": "toiletries",
+   "name": "Toiletries & Personal Care"
+  },
+  {
+   "id": "household",
+   "name": "Household & Cleaning"
+  },
+  {
+   "id": "pharmacy",
+   "name": "Pharmacy (Over-the-counter)"
+  },
+  {
+   "id": "drinks",
+   "name": "Drinks & Beverages"
+  },
+  {
+   "id": "footwear",
+   "name": "Shoes & Sneakers"
+  },
+  {
+   "id": "kids-toys",
+   "name": "Kids, Toys & Games"
+  },
+  {
+   "id": "computing",
+   "name": "Computers & Accessories"
+  },
+  {
+   "id": "gaming",
+   "name": "Gaming"
+  },
+  {
+   "id": "office",
+   "name": "Office & Stationery"
+  },
+  {
+   "id": "pets",
+   "name": "Pet Supplies"
+  },
+  {
+   "id": "jewelry-watches",
+   "name": "Watches, Bags & Accessories"
+  },
+  {
+   "id": "garden-tools",
+   "name": "Tools, DIY & Garden"
+  },
+  {
+   "id": "furniture",
+   "name": "Furniture"
+  },
+  {
+   "id": "books",
+   "name": "Books"
   }
  ],
  "products": [
@@ -427,6 +483,564 @@
    "price": 28000,
    "currency": "NGN",
    "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Engine%20Oil%205W-30%204L",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi1",
+   "title": "Close-Up Toothpaste 140g",
+   "category": "toiletries",
+   "price": 1300,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Close-Up%20Toothpaste%20140g",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi2",
+   "title": "Oral-B Toothbrush (Pack of 3)",
+   "category": "toiletries",
+   "price": 2800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Oral-B%20Toothbrush",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi3",
+   "title": "Rose Plus Toilet Roll (12 rolls)",
+   "category": "toiletries",
+   "price": 4800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Rose%20Plus%20Toilet%20Roll",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi4",
+   "title": "Always Ultra Sanitary Pads (Pack of 16)",
+   "category": "toiletries",
+   "price": 2200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Always%20Ultra%20Sanitary%20Pads",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi5",
+   "title": "Gillette Mach3 Razor + 2 Blades",
+   "category": "toiletries",
+   "price": 7500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Gillette%20Mach3%20Razor%20%2B%202%20Bla",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi6",
+   "title": "Rexona Roll-On Deodorant 50ml",
+   "category": "toiletries",
+   "price": 2600,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Rexona%20Roll-On%20Deodorant%2050m",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi7",
+   "title": "Dettol Antiseptic Liquid 500ml",
+   "category": "toiletries",
+   "price": 3900,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Dettol%20Antiseptic%20Liquid%20500",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-toi8",
+   "title": "Head & Shoulders Shampoo 400ml",
+   "category": "toiletries",
+   "price": 6200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Head%20%26%20Shoulders%20Shampoo%20400",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hou1",
+   "title": "Ariel Detergent Powder 2kg",
+   "category": "household",
+   "price": 6800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Ariel%20Detergent%20Powder%202kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hou2",
+   "title": "Hypo Bleach 1L",
+   "category": "household",
+   "price": 1300,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Hypo%20Bleach%201L",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hou3",
+   "title": "Morning Fresh Dishwashing Liquid 900ml",
+   "category": "household",
+   "price": 2400,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Morning%20Fresh%20Dishwashing%20Li",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hou4",
+   "title": "Mortein Insecticide Spray 600ml",
+   "category": "household",
+   "price": 3700,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Mortein%20Insecticide%20Spray%2060",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hou5",
+   "title": "Kitchen Trash Bags (Roll of 30)",
+   "category": "household",
+   "price": 2500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Kitchen%20Trash%20Bags",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-hou6",
+   "title": "Mop and Bucket Set",
+   "category": "household",
+   "price": 14500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Mop%20and%20Bucket%20Set",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pha1",
+   "title": "Paracetamol 500mg (96 tablets)",
+   "category": "pharmacy",
+   "price": 1500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Paracetamol%20500mg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pha2",
+   "title": "Multivitamin Daily (60 tablets)",
+   "category": "pharmacy",
+   "price": 8500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Multivitamin%20Daily",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pha3",
+   "title": "Oral Rehydration Salts (Pack of 10)",
+   "category": "pharmacy",
+   "price": 2000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Oral%20Rehydration%20Salts",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pha4",
+   "title": "Hand Sanitizer 500ml",
+   "category": "pharmacy",
+   "price": 2800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Hand%20Sanitizer%20500ml",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pha5",
+   "title": "Face Masks (Box of 50)",
+   "category": "pharmacy",
+   "price": 3500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Face%20Masks",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-dri1",
+   "title": "Eva Table Water 75cl (Pack of 12)",
+   "category": "drinks",
+   "price": 2600,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Eva%20Table%20Water%2075cl",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-dri2",
+   "title": "Chi Exotic Juice 1L",
+   "category": "drinks",
+   "price": 1900,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Chi%20Exotic%20Juice%201L",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-dri3",
+   "title": "Lipton Yellow Label Tea (100 bags)",
+   "category": "drinks",
+   "price": 3800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Lipton%20Yellow%20Label%20Tea",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-dri4",
+   "title": "Nescafé Classic Coffee 200g",
+   "category": "drinks",
+   "price": 7200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Nescaf%C3%A9%20Classic%20Coffee%20200g",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-dri5",
+   "title": "Coca-Cola 50cl (Pack of 12)",
+   "category": "drinks",
+   "price": 4200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Coca-Cola%2050cl",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-foo1",
+   "title": "Nike Air Force 1 Sneakers",
+   "category": "footwear",
+   "price": 95000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Nike%20Air%20Force%201%20Sneakers",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-foo2",
+   "title": "Adidas Superstar Sneakers",
+   "category": "footwear",
+   "price": 88000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Adidas%20Superstar%20Sneakers",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-foo3",
+   "title": "Men's Leather Loafers",
+   "category": "footwear",
+   "price": 32000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Men%27s%20Leather%20Loafers",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-foo4",
+   "title": "Women's Block-Heel Sandals",
+   "category": "footwear",
+   "price": 21000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Women%27s%20Block-Heel%20Sandals",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-foo5",
+   "title": "Unisex Rubber Slides",
+   "category": "footwear",
+   "price": 6500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Unisex%20Rubber%20Slides",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-kid1",
+   "title": "Lego Classic Creative Box",
+   "category": "kids-toys",
+   "price": 42000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Lego%20Classic%20Creative%20Box",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-kid2",
+   "title": "Remote Control Car",
+   "category": "kids-toys",
+   "price": 18500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Remote%20Control%20Car",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-kid3",
+   "title": "Kids School Bag",
+   "category": "kids-toys",
+   "price": 9500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Kids%20School%20Bag",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-kid4",
+   "title": "Board Game: Monopoly",
+   "category": "kids-toys",
+   "price": 24000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Board%20Game%3A%20Monopoly",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-com1",
+   "title": "Logitech Wireless Mouse M185",
+   "category": "computing",
+   "price": 9500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Logitech%20Wireless%20Mouse%20M185",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-com2",
+   "title": "HP 32GB USB Flash Drive",
+   "category": "computing",
+   "price": 5500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=HP%2032GB%20USB%20Flash%20Drive",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-com3",
+   "title": "Samsung 1TB External SSD",
+   "category": "computing",
+   "price": 115000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Samsung%201TB%20External%20SSD",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-com4",
+   "title": "Laptop Backpack 15.6-inch",
+   "category": "computing",
+   "price": 18000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Laptop%20Backpack%2015.6-inch",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-com5",
+   "title": "TP-Link 4G Wi-Fi Router",
+   "category": "computing",
+   "price": 48000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=TP-Link%204G%20Wi-Fi%20Router",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gam1",
+   "title": "PlayStation 5 Slim Console",
+   "category": "gaming",
+   "price": 850000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=PlayStation%205%20Slim%20Console",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gam2",
+   "title": "PS5 DualSense Controller",
+   "category": "gaming",
+   "price": 95000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=PS5%20DualSense%20Controller",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gam3",
+   "title": "EA Sports FC 26 (PS5)",
+   "category": "gaming",
+   "price": 65000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=EA%20Sports%20FC%2026",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-off1",
+   "title": "A4 Printing Paper (Ream of 500)",
+   "category": "office",
+   "price": 7500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=A4%20Printing%20Paper",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-off2",
+   "title": "Bic Ballpoint Pens (Box of 50)",
+   "category": "office",
+   "price": 4800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Bic%20Ballpoint%20Pens",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-off3",
+   "title": "Casio Scientific Calculator fx-991",
+   "category": "office",
+   "price": 19500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Casio%20Scientific%20Calculator%20",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-off4",
+   "title": "Hardcover Notebook A5 (Pack of 5)",
+   "category": "office",
+   "price": 6000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Hardcover%20Notebook%20A5",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pet1",
+   "title": "Dog Food Adult 3kg",
+   "category": "pets",
+   "price": 21000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Dog%20Food%20Adult%203kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pet2",
+   "title": "Cat Litter 5kg",
+   "category": "pets",
+   "price": 9800,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Cat%20Litter%205kg",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-pet3",
+   "title": "Pet Shampoo 500ml",
+   "category": "pets",
+   "price": 5200,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Pet%20Shampoo%20500ml",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-jew1",
+   "title": "Casio Digital Watch",
+   "category": "jewelry-watches",
+   "price": 28000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Casio%20Digital%20Watch",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-jew2",
+   "title": "Ray-Ban Style Sunglasses",
+   "category": "jewelry-watches",
+   "price": 15000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Ray-Ban%20Style%20Sunglasses",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-jew3",
+   "title": "Men's Leather Wallet",
+   "category": "jewelry-watches",
+   "price": 9000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Men%27s%20Leather%20Wallet",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-jew4",
+   "title": "Travel Suitcase 24-inch",
+   "category": "jewelry-watches",
+   "price": 65000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Travel%20Suitcase%2024-inch",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gar1",
+   "title": "Cordless Drill 18V",
+   "category": "garden-tools",
+   "price": 78000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Cordless%20Drill%2018V",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gar2",
+   "title": "Tool Box Set (108 pieces)",
+   "category": "garden-tools",
+   "price": 42000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Tool%20Box%20Set",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gar3",
+   "title": "Garden Hose 20m",
+   "category": "garden-tools",
+   "price": 14000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Garden%20Hose%2020m",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-gar4",
+   "title": "Extension Socket 4-way",
+   "category": "garden-tools",
+   "price": 8500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Extension%20Socket%204-way",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-fur1",
+   "title": "Office Chair Ergonomic",
+   "category": "furniture",
+   "price": 120000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Office%20Chair%20Ergonomic",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-fur2",
+   "title": "3-Seater Fabric Sofa",
+   "category": "furniture",
+   "price": 450000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=3-Seater%20Fabric%20Sofa",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-fur3",
+   "title": "Plastic Garden Chair (Set of 4)",
+   "category": "furniture",
+   "price": 32000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Plastic%20Garden%20Chair",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-boo1",
+   "title": "Things Fall Apart — Chinua Achebe",
+   "category": "books",
+   "price": 6500,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Things%20Fall%20Apart",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-boo2",
+   "title": "Atomic Habits — James Clear",
+   "category": "books",
+   "price": 14000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Atomic%20Habits",
+   "merchant": "Demo catalog"
+  },
+  {
+   "id": "d-boo3",
+   "title": "Oxford English Dictionary (Paperback)",
+   "category": "books",
+   "price": 18000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Oxford%20English%20Dictionary",
    "merchant": "Demo catalog"
   }
  ]

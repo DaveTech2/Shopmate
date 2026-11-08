@@ -21,7 +21,7 @@ hermes plugins enable shopmate
 | Step | Tools |
 |---|---|
 | Locate the customer from a shared location pin, Google/Apple Maps link, or area name; every product then shows its doorstep fee and nearest-pickup option | `set_location`, `pickup_stops` |
-| Browse 10 sections (groceries, phones, electronics, fashion, home & kitchen, beauty, baby, health, sports, automotive) | `shop_categories`, `shop_search` |
+| Browse 24 sections — groceries, drinks, toiletries, household & cleaning, pharmacy (OTC), health, beauty, baby, phones, electronics, computers, gaming, fashion, shoes & sneakers, watches & bags, kids & toys, home & kitchen, furniture, office, books, pets, sports, tools & garden, automotive — or just ask for anything | `shop_categories`, `shop_search` |
 | Live product search — real prices, images, merchant names (Google Shopping) | `shop_search`, `shop_product` |
 | Cart | `cart_add`, `cart_remove`, `cart_view`, `cart_clear` |
 | Delivery fee + ETA by distance and item size, standard or express | `delivery_quote` |
