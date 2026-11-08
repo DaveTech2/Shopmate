@@ -1,7 +1,7 @@
 ---
 name: shopping
 description: Find, price, deliver and sell products in chat.
-version: 0.2.1
+version: 0.2.2
 author: DaveTech2
 license: MIT
 metadata:

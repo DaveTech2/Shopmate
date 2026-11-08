@@ -189,8 +189,10 @@ def shop_search(args, **kwargs):
                 for r in results:
                     data["products"][r["id"]] = dict(r, cached_at=int(time.time()))
             store.transact(cache)
-            note = "Live prices from Google Shopping (%s); prices can change at the merchant." % (
-                results[0]["currency"] if results else providers.currency_for(country))
+            note = ("Live prices (%s) — each item's price_source says where it came from; prices can change "
+                    "at the merchant, so confirm on the shop page." % (results[0]["currency"] if results
+                                                                       else providers.currency_for(country))) \
+                if results else "No live listings found for that search; try different words."
     else:
         results = providers.search_demo(query, category, max_price, limit)
         note = ("Demo catalog: sample prices, not live. Set SERPAPI_API_KEY for real prices and photos."

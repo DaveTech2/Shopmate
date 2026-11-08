@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -73,15 +74,42 @@ def currency_for(country: str) -> str:
     return COUNTRY_CURRENCY.get((country or "").lower(), "USD")
 
 
-def search_live(api_key: str, query: str, country: str = "ng", max_price: float = None, limit: int = 10):
-    params = {
-        "engine": "google_shopping",
-        "q": query,
-        "gl": country,
-        "hl": "en",
-        "api_key": api_key,
-    }
-    data = _http_json("https://serpapi.com/search.json?" + urllib.parse.urlencode(params))
+SYMBOL_RE = {
+    "NGN": r"(?:₦|NGN|N)\s?([0-9][0-9,]{2,})(?:\.\d{2})?", "GHS": r"(?:GH₵|GHS|GH¢|₵)\s?([0-9][0-9,]*(?:\.\d{2})?)",
+    "KES": r"(?:KSh|KES|Ksh)\s?([0-9][0-9,]*)", "ZAR": r"(?:R|ZAR)\s?([0-9][0-9,]*(?:\.\d{2})?)",
+    "USD": r"(?:US\$|\$|USD)\s?([0-9][0-9,]*(?:\.\d{2})?)", "GBP": r"(?:£|GBP)\s?([0-9][0-9,]*(?:\.\d{2})?)",
+    "EUR": r"(?:€|EUR)\s?([0-9][0-9.,]*)", "INR": r"(?:₹|Rs\.?|INR)\s?([0-9][0-9,]*)",
+}
+TRUSTED_SHOPS = {
+    "ng": ["jumia.com.ng", "konga.com", "slot.ng", "jiji.ng", "pointekonline.com", "kara.com.ng", "3chub.com",
+           "spar.com.ng", "supermart.ng", "ebeano.com.ng", "bestbuyng.com", "fouani.com"],
+    "gh": ["jumia.com.gh", "tonaton.com", "melcom.com", "compughana.com"],
+    "ke": ["jumia.co.ke", "kilimall.co.ke", "phoneplacekenya.com", "carrefour.ke", "jiji.co.ke"],
+    "za": ["takealot.com", "makro.co.za", "game.co.za", "incredible.co.za", "checkers.co.za"],
+}
+
+
+def _pid(key):
+    return "g-" + hashlib.sha1(str(key).encode()).hexdigest()[:12]
+
+
+def _price_in(text, currency):
+    pat = SYMBOL_RE.get(currency)
+    if not pat or not text:
+        return None
+    for m in re.finditer(pat, text):
+        try:
+            v = float(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        if v >= (100 if currency == "NGN" else 1):
+            return v
+    return None
+
+
+def _shopping(api_key, query, country):
+    data = _http_json("https://serpapi.com/search.json?" + urllib.parse.urlencode(
+        {"engine": "google_shopping", "q": query, "gl": country, "hl": "en", "api_key": api_key}))
     if data.get("error"):
         raise RuntimeError(data["error"])
     out = []
@@ -89,27 +117,77 @@ def search_live(api_key: str, query: str, country: str = "ng", max_price: float 
         price = r.get("extracted_price")
         if price is None:
             continue
-        if max_price and price > max_price:
-            continue
         link = r.get("product_link") or r.get("link") or ""
-        key = r.get("product_id") or (r.get("title", "") + link)
-        pid = "g-" + hashlib.sha1(str(key).encode()).hexdigest()[:12]
         out.append({
-            "id": pid,
-            "title": r.get("title"),
-            "price": price,
-            "price_display": r.get("price"),
-            "currency": currency_for(country),
-            "image": r.get("thumbnail") or r.get("serpapi_thumbnail"),
-            "merchant": r.get("source"),
-            "link": link,
-            "rating": r.get("rating"),
-            "reviews": r.get("reviews"),
+            "id": _pid(r.get("product_id") or (r.get("title", "") + link)), "title": r.get("title"),
+            "price": price, "price_display": r.get("price"), "currency": currency_for(country),
+            "image": r.get("thumbnail") or r.get("serpapi_thumbnail"), "merchant": r.get("source"),
+            "link": link, "rating": r.get("rating"), "reviews": r.get("reviews"),
             "price_source": "live (Google Shopping)",
         })
-        if len(out) >= limit:
-            break
     return out
+
+
+def _web(api_key, query, country):
+    """Countries without Google Shopping: read prices from regular Google results (shop listings)."""
+    cur = currency_for(country)
+    data = _http_json("https://serpapi.com/search.json?" + urllib.parse.urlencode(
+        {"engine": "google", "q": query + " price", "gl": country, "hl": "en", "num": 20, "api_key": api_key}))
+    if data.get("error"):
+        raise RuntimeError(data["error"])
+    out = []
+    blocks = (data.get("inline_shopping_results") or []) + (data.get("immersive_products") or [])
+    for r in blocks:  # product carousels, when Google shows them
+        price = r.get("extracted_price") or _price_in(str(r.get("price", "")), cur)
+        if not price:
+            continue
+        link = r.get("link") or r.get("product_link") or ""
+        out.append({"id": _pid(r.get("title", "") + link + str(price)), "title": r.get("title"), "price": price,
+                    "price_display": r.get("price"), "currency": cur, "image": r.get("thumbnail"),
+                    "merchant": r.get("source"), "link": link, "price_source": "live (Google product listing)"})
+    shops = TRUSTED_SHOPS.get(country, [])
+    for r in data.get("organic_results", []) or []:
+        link = r.get("link") or ""
+        domain = urllib.parse.urlsplit(link).netloc.lower().removeprefix("www.")
+        rich = (r.get("rich_snippet") or {}).get("top") or (r.get("rich_snippet") or {}).get("bottom") or {}
+        ext = rich.get("detected_extensions") or {}
+        price = ext.get("price") or _price_in(" ".join(map(str, rich.get("extensions") or [])), cur) \
+            or _price_in(r.get("title", ""), cur) or _price_in(r.get("snippet", ""), cur)
+        if not price:
+            continue
+        out.append({
+            "id": _pid(link), "title": r.get("title"), "price": float(price), "currency": cur,
+            "image": r.get("thumbnail"), "merchant": r.get("source") or domain, "link": link,
+            "trusted_shop": any(domain.endswith(d) for d in shops),
+            "price_source": "live (price from %s listing — confirm on the shop page)" % domain,
+        })
+    out.sort(key=lambda p: (not p.get("trusted_shop", True), 0))
+    return out
+
+
+def search_live(api_key: str, query: str, country: str = "ng", max_price: float = None, limit: int = 10):
+    """Google Shopping first; where it has no results (e.g. Nigeria) fall back to shop listings in Google search."""
+    errors = []
+    results = []
+    for fn in (_shopping, _web):
+        try:
+            results = fn(api_key, query, country)
+        except Exception as e:
+            errors.append("%s: %s" % (fn.__name__.strip("_"), e))
+            continue
+        if results:
+            break
+    if not results and errors and len(errors) == 2:
+        raise RuntimeError("; ".join(errors))
+    if max_price:
+        results = [r for r in results if r["price"] <= max_price]
+    seen, out = set(), []
+    for r in results:
+        if r["id"] in seen:
+            continue
+        seen.add(r["id"])
+        out.append(r)
+    return out[:limit]
 
 
 _FX = {}

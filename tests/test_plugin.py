@@ -44,6 +44,16 @@ def fake_http(url, data=None, headers=None, method=None):
         assert headers and "shopmate" in headers.get("User-Agent", "")
         return {"lat": "51.5010", "lon": "-0.1416", "address": {"suburb": "Westminster", "city": "London",
                 "state": "England", "country": "United Kingdom", "country_code": "gb"}}
+    if "engine=google_shopping" in url and "infinix" in url:
+        return {"error": "Google Shopping hasn't returned any results for this query."}
+    if "engine=google&" in url and "infinix" in url:
+        return {"organic_results": [
+            {"title": "Infinix Hot 50 256GB - Jumia Nigeria", "link": "https://www.jumia.com.ng/infinix-hot-50.html",
+             "source": "Jumia Nigeria", "thumbnail": "https://img.example/hot50.jpg",
+             "rich_snippet": {"top": {"detected_extensions": {"price": 231500}, "extensions": ["₦231,500", "In stock"]}}},
+            {"title": "Infinix Hot 50 review", "link": "https://blog.example/hot50", "snippet": "A great phone."},
+            {"title": "Infinix Hot 50 | Konga", "link": "https://www.konga.com/product/hot-50",
+             "snippet": "Buy Infinix Hot 50 for ₦228,999 with fast delivery in Lagos."}]}
     if "serpapi.com" in url and "gl=us" in url:
         return {"shopping_results": [{"title": "Apple AirPods Pro 2", "price": "$189.99", "extracted_price": 189.99,
                 "thumbnail": "https://img.example/ap.jpg", "source": "Best Buy", "product_link": "https://x/ap", "product_id": "ap"}]}
@@ -180,6 +190,13 @@ assert call(ctx, "order_status", order_id=coid)["payment_status"] == "paid"
 assert len(call(ctx, "order_status")["orders"]) == 2
 assert call(ctx, "order_status", conv="other")["orders"] == []
 
+# --- Nigeria has no Google Shopping: falls back to shop listings in Google search
+r = call(ctx, "shop_search", query="infinix hot 50")
+titles = [x["merchant"] for x in r["results"]]
+assert len(r["results"]) == 2 and r["results"][0]["price"] == 231500 and "Konga" not in titles[0], r
+assert r["results"][1]["price"] == 228999 and r["results"][0]["image"] and "confirm" in r["results"][0]["price_source"]
+assert r["results"][0]["total_delivered"], r
+print("ng web fallback:", [(x["merchant"], x["price_display"], x.get("delivery_display")) for x in r["results"]])
 # --- worldwide: any city / address, local merchants, local currency
 r = call(ctx, "set_location", city="Brooklyn, New York", conv="nyc"); assert r["country"] == "US" and r["local_currency"] == "USD", r
 r = call(ctx, "shop_search", query="airpods pro", conv="nyc")

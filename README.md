@@ -61,7 +61,9 @@ merchants. ## Delivery fees
 Shown on **every product** once the customer's location is known — anywhere in the world. Places in the bundled
 list resolve instantly offline; any other city, town, landmark or full street address is looked up on
 OpenStreetMap (Nominatim). Live search follows the customer's country, so they see local merchants in their local
-currency (falling back to `fallback_country` where Google Shopping isn't available).
+currency. Where Google Shopping has no results (Nigeria, for example), Shopmate reads prices from shop
+listings in regular Google results (Jumia, Konga, Slot, Jiji and other known local shops first), and labels each
+price with the shop it came from.
 
 Customers in your home country ship from `origin`. Customers abroad are served by merchants in their own
 city (`abroad: local`, default), or set `abroad: ship` to ship internationally from your origin.
