@@ -113,7 +113,8 @@ def quote(origin: dict, dest: dict, items, speed: str = "standard") -> dict:
     size_fee = 0
     for p, q in items:
         s = table["size"][size_class(p)]
-        size_fee += s + (s * 0.5 * (q - 1))  # extra units of the same item cost half
+        # bulk: units 2-10 of the same item cost 50% of the first, units 11+ cost 15%
+        size_fee += s + s * 0.5 * min(max(q - 1, 0), 9) + s * 0.15 * max(q - 10, 0)
     fee = distance_fee + size_fee
     lo, hi = r["eta"]
     if speed == "express":

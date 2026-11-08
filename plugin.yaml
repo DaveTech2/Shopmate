@@ -1,5 +1,5 @@
 name: shopmate
-version: "0.3.1"
+version: "0.4.0"
 manifest_version: 2
 api_version: 1
 description: >-
@@ -19,6 +19,7 @@ provides_tools:
   - pickup_stops
   - shop_product
   - cart_add
+  - cart_update
   - cart_remove
   - cart_view
   - cart_clear

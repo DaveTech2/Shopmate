@@ -23,7 +23,7 @@ hermes plugins enable shopmate
 | Locate the customer from a shared location pin, Google/Apple Maps link, or area name; every product then shows its doorstep fee and nearest-pickup option | `set_location`, `pickup_stops` |
 | Browse 24 sections — groceries, drinks, toiletries, household & cleaning, pharmacy (OTC), health, beauty, baby, phones, electronics, computers, gaming, fashion, shoes & sneakers, watches & bags, kids & toys, home & kitchen, furniture, office, books, pets, sports, tools & garden, automotive — or just ask for anything | `shop_categories`, `shop_search` |
 | Live product search — real prices, images, merchant names (Google Shopping) | `shop_search`, `shop_product` |
-| Cart | `cart_add`, `cart_remove`, `cart_view`, `cart_clear` |
+| Cart and bulk orders — add many products at once, up to 1,000 of each, with bulk delivery pricing | `cart_add`, `cart_update`, `cart_remove`, `cart_view`, `cart_clear` |
 | Delivery fee + ETA by distance and item size, standard or express | `delivery_quote` |
 | Pay: Paystack (NGN, GHS, KES, ZAR, USD, XOF, EGP, RWF) or crypto (USDT, USDC, BTC, ETH, SOL, BNB, TRX, LTC) | `payment_options`, `checkout` |
 | Verify payment and track the order | `order_status` |

@@ -218,6 +218,16 @@ assert len(r["results"]) == 2 and r["results"][0]["price"] == 231500 and "Konga"
 assert r["results"][1]["price"] == 228999 and r["results"][0]["image"] and "confirm" in r["results"][0]["price_source"]
 assert r["results"][0]["total_delivered"], r
 print("ng web fallback:", [(x["merchant"], x["price_display"], x.get("delivery_display")) for x in r["results"]])
+# --- bulk orders: many items at once, big quantities, one checkout
+r = call(ctx, "cart_add", conv="bulk", items=[{"product_id": "d-gro1", "quantity": 20}, {"product_id": "d-gro3", "quantity": 10}])
+assert r["items"] == 30 and r["subtotal"] == 20*7800 + 10*62000 and "total_delivered" in r, r
+bulk_fee = r["delivery_fee"]
+r = call(ctx, "cart_update", conv="bulk", product_id="d-gro1", quantity=200); assert r["items"] == 210, r
+assert "error" in call(ctx, "cart_add", conv="bulk", product_id="d-gro1", quantity=1001)
+assert "error" in call(ctx, "cart_add", conv="bulk", items=[{"product_id": "nope", "quantity": 2}])
+r = call(ctx, "cart_update", conv="bulk", product_id="d-gro1", quantity=0); assert r["items"] == 10
+print("bulk 20 Indomie + 10 rice to Lekki: delivery", bulk_fee)
+
 # --- worldwide: any city / address, local merchants, local currency
 r = call(ctx, "set_location", city="Brooklyn, New York", conv="nyc"); assert r["country"] == "US" and r["local_currency"] == "USD", r
 r = call(ctx, "shop_search", query="airpods pro", conv="nyc")

@@ -67,9 +67,24 @@ SHOP_PRODUCT = {
 
 CART_ADD = {
     "name": "cart_add",
-    "description": "Add a product to the user's cart. Only add what the user explicitly chose.",
+    "description": (
+        "Add products to the customer's cart — one (product_id + quantity) or many at once via items, for bulk "
+        "orders (up to 1000 of each). Only add what the customer chose. Returns the cart with delivery fee and total."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "product_id": _PID,
+        "quantity": {"type": "integer", "description": "How many (default 1, max 1000)"},
+        "items": {"type": "array", "description": "Bulk: several products at once",
+                  "items": {"type": "object", "properties": {"product_id": _PID, "quantity": {"type": "integer"}},
+                            "required": ["product_id"]}},
+    }},
+}
+
+CART_UPDATE = {
+    "name": "cart_update",
+    "description": "Set the exact quantity of an item already in the cart (0 removes it).",
     "parameters": {"type": "object", "properties": {"product_id": _PID,
-                   "quantity": {"type": "integer", "description": "How many (default 1)"}}, "required": ["product_id"]},
+                   "quantity": {"type": "integer", "description": "New quantity, 0-1000"}}, "required": ["product_id", "quantity"]},
 }
 
 CART_REMOVE = {

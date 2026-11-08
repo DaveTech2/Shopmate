@@ -1,7 +1,7 @@
 ---
 name: shopping
 description: Find, price, deliver and sell products in chat.
-version: 0.3.1
+version: 0.4.0
 author: DaveTech2
 license: MIT
 metadata:
@@ -49,6 +49,13 @@ real price, the delivery fee to where they are, the total, and a way to pay.
 7. **Verify and hand over.** Never say "paid" until `order_status` says `paid`. Then confirm the order number,
    the delivery address and the ETA: the store now buys the item and dispatches it. Use `order_status` whenever
    the customer asks where their order is.
+
+## Bulk orders and multiple items
+
+Customers can order several things or large quantities at once ("20 cartons of Indomie and 10 bags of rice for my
+shop"). Search each product, confirm the picks in one short list, then add them together with `cart_add` `items`
+(up to 1000 of each). Show the cart (`cart_view`): each line, the bulk delivery fee and the total. Use
+`cart_update` to change a quantity and `cart_remove` to drop a line. Checkout covers the whole cart in one payment.
 
 ## Anything they want
 

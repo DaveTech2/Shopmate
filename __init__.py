@@ -14,6 +14,7 @@ TOOLS = [
     ("pickup_stops", schemas.PICKUP_STOPS, tools.pickup_stops),
     ("shop_product", schemas.SHOP_PRODUCT, tools.shop_product),
     ("cart_add", schemas.CART_ADD, tools.cart_add),
+    ("cart_update", schemas.CART_UPDATE, tools.cart_update),
     ("cart_remove", schemas.CART_REMOVE, tools.cart_remove),
     ("cart_view", schemas.CART_VIEW, tools.cart_view),
     ("cart_clear", schemas.CART_CLEAR, tools.cart_clear),

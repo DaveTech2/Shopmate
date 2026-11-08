@@ -288,24 +288,67 @@ def pickup_stops(args, **kwargs):
 
 # ---------- cart ----------
 
+MAX_QTY = 1000
+
+
 @safe
 def cart_add(args, **kwargs):
-    pid, cid = args.get("product_id"), _cid(kwargs)
-    qty = int(args["quantity"]) if args.get("quantity") is not None else 1
-    if qty < 1 or qty > 99:
-        return _err("Quantity must be between 1 and 99")
+    """Add one product, or many at once (bulk orders): items=[{product_id, quantity}, ...]."""
+    cid = _cid(kwargs)
+    items = args.get("items") or [{"product_id": args.get("product_id"), "quantity": args.get("quantity")}]
+    wanted = []
+    for it in items:
+        pid = (it or {}).get("product_id")
+        qty = int(it["quantity"]) if (it or {}).get("quantity") is not None else 1
+        if qty < 1 or qty > MAX_QTY:
+            return _err("Quantity must be between 1 and %d" % MAX_QTY, product_id=pid)
+        wanted.append((pid, qty))
 
     def fn(data):
-        if not _find_product(data, pid):
-            return None
+        missing = [pid for pid, _ in wanted if not _find_product(data, pid)]
+        if missing:
+            return missing
         cart = data["carts"].setdefault(cid, {})
-        cart[pid] = min(99, cart.get(pid, 0) + qty)
+        for pid, qty in wanted:
+            cart[pid] = min(MAX_QTY, cart.get(pid, 0) + qty)
+        return _cart_summary(data, cid)
+    res = store.transact(fn)
+    if isinstance(res, list):
+        return _err("Product not found; search first and use ids from the results", product_ids=res)
+    lines, subtotal = res
+    cur = _base_currency(lines)
+    out = dict(cart=lines, items=sum(l["qty"] for l in lines), subtotal=subtotal, subtotal_display=_money(subtotal, cur))
+    loc = _current_location(cid)
+    if loc:
+        q = _ship([(l, l["qty"]) for l in lines], loc, "standard", cur)
+        out.update(delivery_fee=q["fee_display"], delivery_eta=q["eta"], delivering_to=q["to"],
+                   total_delivered=_money(subtotal + q["fee"], cur))
+    return _ok(**out)
+
+
+@safe
+def cart_update(args, **kwargs):
+    """Set an item's quantity exactly (0 removes it) — handy for bulk orders."""
+    pid, cid = args.get("product_id"), _cid(kwargs)
+    qty = int(args.get("quantity") if args.get("quantity") is not None else -1)
+    if qty < 0 or qty > MAX_QTY:
+        return _err("quantity must be between 0 and %d" % MAX_QTY)
+
+    def fn(data):
+        cart = data["carts"].setdefault(cid, {})
+        if pid not in cart:
+            return None
+        if qty == 0:
+            del cart[pid]
+        else:
+            cart[pid] = qty
         return _cart_summary(data, cid)
     res = store.transact(fn)
     if res is None:
-        return _err("Product not found; search first and use an id from the results", product_id=pid)
+        return _err("That item is not in the cart", product_id=pid)
     lines, subtotal = res
-    return _ok(cart=lines, subtotal=subtotal, subtotal_display=_money(subtotal, _base_currency(lines)))
+    return _ok(cart=lines, items=sum(l["qty"] for l in lines), subtotal=subtotal,
+               subtotal_display=_money(subtotal, _base_currency(lines)))
 
 
 @safe
