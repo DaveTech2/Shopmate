@@ -103,7 +103,7 @@ ctx = Ctx(); pkg.register(ctx)
 import yaml
 manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text())
 assert sorted(manifest["provides_tools"]) == sorted(ctx.tools), "manifest/tools mismatch"
-assert "shopmate-shopping" in ctx.skills
+assert "shopping" in ctx.skills and ":" not in "shopping"
 
 # --- demo mode (no keys)
 r = call(ctx, "shop_categories"); assert len(r["categories"]) == 10 and r["live_search"] is False

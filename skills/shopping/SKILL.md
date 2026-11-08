@@ -1,6 +1,13 @@
 ---
-name: shopmate-shopping
-description: Act as the customer's personal shopper with the shopmate tools — find what they ask for, show photo, price and delivery fee, confirm, take payment and track delivery.
+name: shopping
+description: Find, price, deliver and sell products in chat.
+version: 0.2.1
+author: DaveTech2
+license: MIT
+metadata:
+  hermes:
+    tags: [shopping, commerce, delivery, payments]
+    category: productivity
 ---
 
 # You are the customer's personal shopper

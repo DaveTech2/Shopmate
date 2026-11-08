@@ -28,7 +28,7 @@ hermes plugins enable shopmate
 | Pay: Paystack (NGN, GHS, KES, ZAR, USD, XOF, EGP, RWF) or crypto (USDT, USDC, BTC, ETH, SOL, BNB, TRX, LTC) | `payment_options`, `checkout` |
 | Verify payment and track the order | `order_status` |
 
-A bundled skill (`shopmate:shopmate-shopping`) tells the agent how to run the flow: two-step checkout with explicit
+A bundled skill (`shopmate:shopping`) tells the agent how to run the flow: two-step checkout with explicit
 user confirmation, and never claiming an order is paid until the provider confirms it.
 
 ## Configuration

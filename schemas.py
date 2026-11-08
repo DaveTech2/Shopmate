@@ -13,6 +13,7 @@ SHOP_SEARCH = {
     "description": (
         "Search products. With a search term and live search configured, returns real current prices, photos and "
         "merchants from Google Shopping; otherwise returns the demo catalog (sample prices — say so). "
+        "Follow the shopping playbook: skill_view('shopmate:shopping'). "
         "Show each result with its image as markdown ![title](image), price and merchant. "
         "Every result carries delivery_display and total_delivered for the customer's saved location — always show "
         "them. best_match is the top pick to present for confirmation. To browse a section, pass category with an empty query."
