@@ -72,9 +72,26 @@ def _base_currency(lines):
     return lines[0]["currency"] if lines else "NGN"
 
 
-def _origin():
+def _home():
     o = delivery.resolve(providers.get_secret("SHOPMATE_ORIGIN") or "lagos")
     return o or delivery.resolve("lagos")
+
+
+def _origin(loc=None):
+    """Where an order ships from. Customers in the store's home country are served from SHOPMATE_ORIGIN.
+    Customers abroad are served by local merchants in their own city (SHOPMATE_ABROAD=local, default),
+    or shipped internationally from the home dispatch point (SHOPMATE_ABROAD=ship)."""
+    home = _home()
+    if loc and loc.get("country") and loc["country"] != home.get("country"):
+        if (providers.get_secret("SHOPMATE_ABROAD") or "local").lower() != "ship":
+            return delivery.local_origin(loc)
+    return home
+
+
+def _search_country(loc):
+    if loc and loc.get("country"):
+        return loc["country"].lower()
+    return (providers.get_secret("SHOPMATE_COUNTRY") or "ng").lower()
 
 
 def _location(data, cid):
@@ -83,9 +100,9 @@ def _location(data, cid):
 
 def _ship(items, loc, speed="standard", currency="NGN"):
     """Delivery quote for [(product, qty)] to loc, in `currency`."""
-    q = delivery.quote(_origin(), loc, items, speed)
-    rate = providers.fx_rate("NGN", currency) if currency != "NGN" else 1.0
-    q["fee"] = round(q["fee"] * rate, 2) if currency != "NGN" else q["fee"]
+    q = delivery.quote(_origin(loc), loc, items, speed)
+    if q["fee_currency"] != currency:
+        q["fee"] = round(q["fee"] * providers.fx_rate(q["fee_currency"], currency), 2)
     q["fee_display"] = _money(q["fee"], currency)
     q["to"] = loc["name"] + (", " + loc["state"] if loc.get("state") else "")
     return q
@@ -93,15 +110,15 @@ def _ship(items, loc, speed="standard", currency="NGN"):
 
 def _nearest_stop(loc):
     stops = delivery.nearest_stops(loc, 1)
-    if not stops or stops[0]["distance_from_customer_km"] > 40 or loc.get("country", "NG") != "NG":
+    if not stops or stops[0]["distance_from_customer_km"] > 40 or stops[0].get("country", "NG") != loc.get("country"):
         return None
     return stops[0]
 
 
 def _pickup(stop, items, speed="standard", currency="NGN"):
-    q = delivery.pickup_quote(_origin(), stop, items, speed)
-    if currency != "NGN":
-        q["fee"] = round(q["fee"] * providers.fx_rate("NGN", currency), 2)
+    q = delivery.pickup_quote(_origin(dict(stop, country=stop.get("country", "NG"))), stop, items, speed)
+    if q["fee_currency"] != currency:
+        q["fee"] = round(q["fee"] * providers.fx_rate(q["fee_currency"], currency), 2)
     q["fee_display"] = _money(q["fee"], currency)
     q["to"] = "Pickup: " + stop["name"]
     return q
@@ -114,7 +131,7 @@ def _resolve_input(args):
     c = delivery.parse_coords(args.get("shared_location") or args.get("city") or "")
     if c:
         return delivery.from_coords(*c)
-    return delivery.resolve(args.get("city"), args.get("state"))
+    return delivery.resolve(args.get("city"), args.get("state"), args.get("country"))
 
 
 def _annotate(products, loc, speed="standard"):
@@ -158,9 +175,13 @@ def shop_search(args, **kwargs):
     key = providers.get_secret("SERPAPI_API_KEY")
     if key and query:
         q = query if not category else "%s %s" % (query, providers.category_name(category))
-        country = providers.get_secret("SHOPMATE_COUNTRY") or "ng"
+        loc0 = store.read(lambda d: _location(d, _cid(kwargs)))
+        country = _search_country(loc0)
         try:
             results = providers.search_live(key, q, country, max_price, limit)
+            fallback = (providers.get_secret("SHOPMATE_COUNTRY") or "ng").lower()
+            if not results and country != fallback:  # Google Shopping isn't live in every country
+                results = providers.search_live(key, q, fallback, max_price, limit)
         except Exception as e:
             results, note = providers.search_demo(query, category, max_price, limit), "Live search failed (%s); showing demo catalog." % e
         else:
@@ -168,7 +189,8 @@ def shop_search(args, **kwargs):
                 for r in results:
                     data["products"][r["id"]] = dict(r, cached_at=int(time.time()))
             store.transact(cache)
-            note = "Live prices from Google Shopping; prices can change at the merchant."
+            note = "Live prices from Google Shopping (%s); prices can change at the merchant." % (
+                results[0]["currency"] if results else providers.currency_for(country))
     else:
         results = providers.search_demo(query, category, max_price, limit)
         note = ("Demo catalog: sample prices, not live. Set SERPAPI_API_KEY for real prices and photos."
@@ -208,16 +230,19 @@ def set_location(args, **kwargs):
                     examples=["Lekki", "Ikeja", "Abuja", "Port Harcourt", "Kano", "Enugu", "Accra"])
     loc = dict(loc, area=None if loc.get("precise") else args.get("city"))
     store.transact(lambda d: d.setdefault("locations", {}).__setitem__(cid, loc))
-    o = _origin()
+    o = _origin(loc)
     sample = delivery.quote(o, loc, [({"title": "", "category": "phones"}, 1)])
+    local_cur = providers.currency_for(loc.get("country"))
+    sample_fee = sample["fee"] if sample["fee_currency"] == local_cur else \
+        round(sample["fee"] * providers.fx_rate(sample["fee_currency"], local_cur), 2)
     return _ok(location=loc["name"] + (", " + loc["state"] if loc.get("state") else ""), country=loc["country"],
                ships_from=o["name"], distance_km=sample["distance_km"], zone=sample["band"],
-               typical_eta=sample["eta"], doorstep_small_item_fee=_naira(sample["fee"]),
+               typical_eta=sample["eta"], doorstep_small_item_fee=_money(sample_fee, local_cur), local_currency=local_cur,
                precise=bool(loc.get("precise")),
                nearest_pickup_stops=[{"id": s["id"], "name": s["name"], "km_from_you": s["distance_from_customer_km"],
                                       "hours": s.get("hours"), "sample": s["sample"]}
-                                     for s in (delivery.nearest_stops(loc, 3) if loc["country"] == "NG" else [])
-                                     if s["distance_from_customer_km"] <= 40],
+                                     for s in delivery.nearest_stops(loc, 3)
+                                     if s["distance_from_customer_km"] <= 40 and s.get("country", "NG") == loc.get("country")],
                note="Every product will now show doorstep delivery and, where available, a cheaper pickup option.")
 
 
@@ -370,9 +395,13 @@ def checkout(args, **kwargs):
     total = round(subtotal + fee, 2)
 
     if method == "paystack":
-        pay_cur = (args.get("currency") or base).upper()
+        if args.get("currency"):
+            pay_cur = args["currency"].upper()
+        else:  # customer's local currency if Paystack takes it, else the cart's, else USD (international cards)
+            local = providers.currency_for(loc.get("country"))
+            pay_cur = next((c for c in (local, base, "USD") if c in payments.PAYSTACK_CURRENCIES), "USD")
         if pay_cur not in payments.PAYSTACK_CURRENCIES:
-            return _err("Paystack doesn't support %s" % pay_cur, supported=sorted(payments.PAYSTACK_CURRENCIES))
+            return _err("Paystack doesn't support %s; use one of these or pay with crypto" % pay_cur, supported=sorted(payments.PAYSTACK_CURRENCIES))
         coin = None
     else:
         pay_cur = "USD"

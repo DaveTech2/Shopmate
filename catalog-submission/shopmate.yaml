@@ -2,7 +2,7 @@
 name: shopmate
 repo: https://github.com/DaveTech2/shopmate
 sha: 7e8462954f16d2d1f55e169dc784505a7d88dacf
-version: "0.1.0"
+version: "0.2.0"
 requires_hermes: ">=0.21.5"
 capabilities:
   tools:

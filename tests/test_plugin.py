@@ -31,6 +31,23 @@ CALLS = []
 def fake_http(url, data=None, headers=None, method=None):
     CALLS.append(url)
     body = json.loads(data) if data else None
+    if "nominatim.openstreetmap.org/search" in url:
+        if "Brooklyn" in url:
+            return [{"lat": "40.6782", "lon": "-73.9442", "address": {"suburb": "Brooklyn", "city": "New York",
+                     "state": "New York", "country": "United States", "country_code": "us"}}]
+        if "Westminster" in url or "London" in url:
+            return [{"lat": "51.5074", "lon": "-0.1278", "address": {"city": "London", "state": "England",
+                     "country": "United Kingdom", "country_code": "gb"}}]
+        return []
+    if "nominatim.openstreetmap.org/reverse" in url:
+        assert headers and "shopmate" in headers.get("User-Agent", "")
+        return {"lat": "51.5010", "lon": "-0.1416", "address": {"suburb": "Westminster", "city": "London",
+                "state": "England", "country": "United Kingdom", "country_code": "gb"}}
+    if "serpapi.com" in url and "gl=us" in url:
+        return {"shopping_results": [{"title": "Apple AirPods Pro 2", "price": "$189.99", "extracted_price": 189.99,
+                "thumbnail": "https://img.example/ap.jpg", "source": "Best Buy", "product_link": "https://x/ap", "product_id": "ap"}]}
+    if "serpapi.com" in url and "gl=gb" in url:
+        return {"shopping_results": []}
     if "serpapi.com" in url:
         return {"shopping_results": [
             {"title": "Tecno Spark 30 128GB", "price": "₦189,500", "extracted_price": 189500,
@@ -38,9 +55,11 @@ def fake_http(url, data=None, headers=None, method=None):
             {"title": "Tecno Spark 30 Pro", "price": "₦235,000", "extracted_price": 235000,
              "thumbnail": "https://img.example/pro.jpg", "source": "Konga", "product_link": "https://x/2", "product_id": "2"}]}
     if "open.er-api.com" in url:
-        return {"result": "success", "rates": {"NGN": 1, "USD": 0.00065, "GHS": 0.0098, "KES": 0.084}}
+        if "/latest/USD" in url:
+            return {"result": "success", "rates": {"USD": 1, "NGN": 1540, "GBP": 0.78, "GHS": 15}}
+        return {"result": "success", "rates": {"NGN": 1, "USD": 0.00065, "GHS": 0.0098, "KES": 0.084, "GBP": 0.0005}}
     if url.endswith("/transaction/initialize"):
-        assert body["currency"] in ("NGN", "GHS") and isinstance(body["amount"], int), body
+        assert body["currency"] in ("NGN", "GHS", "USD") and isinstance(body["amount"], int), body
         CALLS.append(("paystack_init", body))
         return {"status": True, "data": {"authorization_url": "https://checkout.paystack.com/abc", "reference": body["reference"]}}
     if "/transaction/verify/" in url:
@@ -98,7 +117,10 @@ earbuds = call(ctx, "shop_search", query="oraimo earbuds")["results"][0]
 assert earbuds["size"] == "small" and earbuds["delivery_fee"] < near["results"][0]["delivery_fee"]
 r = call(ctx, "shop_search", query="tecno phone"); assert r["results"] and "Tecno" in r["results"][0]["title"]
 r = call(ctx, "shop_product", product_id="d-pho1"); assert "delivery_express" in r["product"]
-r = call(ctx, "set_location", city="Accra", conv="gh"); assert r["zone"] == "international"
+r = call(ctx, "set_location", city="Accra", conv="gh"); assert r["zone"] == "same city" and r["local_currency"] == "GHS", r
+SECRETS["SHOPMATE_ABROAD"] = "ship"
+r = call(ctx, "set_location", city="Accra", conv="gh"); assert r["zone"] == "international", r
+del SECRETS["SHOPMATE_ABROAD"]
 # precise location from a shared pin / maps link
 r = call(ctx, "set_location", lat=6.4480, lon=3.4730, conv="pin")
 assert r["precise"] and r["location"].startswith("Lekki") and r["nearest_pickup_stops"][0]["id"] == "lk1", r
@@ -154,6 +176,18 @@ assert call(ctx, "order_status", order_id=coid)["payment_status"] == "paid"
 assert len(call(ctx, "order_status")["orders"]) == 2
 assert call(ctx, "order_status", conv="other")["orders"] == []
 
+# --- worldwide: any city / address, local merchants, local currency
+r = call(ctx, "set_location", city="Brooklyn, New York", conv="nyc"); assert r["country"] == "US" and r["local_currency"] == "USD", r
+r = call(ctx, "shop_search", query="airpods pro", conv="nyc")
+ap = r["results"][0]; assert ap["currency"] == "USD" and ap["delivery_display"].startswith("$") and "Best Buy" == ap["merchant"], ap
+call(ctx, "cart_add", product_id=ap["id"], conv="nyc")
+r = call(ctx, "checkout", full_name="Sam", email="sam@example.com", phone="+1 555", address="1 Main St", conv="nyc")
+assert r["summary"]["pay_with"] == "Paystack (USD)" and "exchange_rate" not in r["summary"], r
+r = call(ctx, "set_location", lat=51.5010, lon=-0.1416, conv="ldn"); assert r["country"] == "GB" and "Westminster" in r["location"], r
+r = call(ctx, "shop_search", query="tecno spark 30", conv="ldn")  # gl=gb empty -> falls back to the store country
+assert r["results"] and r["results"][0]["delivery_display"], r
+r = call(ctx, "set_location", city="Nowhereville Zzz", conv="x"); assert "error" in r
+print("nyc airpods delivery:", ap["delivery_display"])
 # --- live key refuses demo items
 SECRETS["PAYSTACK_SECRET_KEY"] = "sk_live_x"
 call(ctx, "cart_add", product_id="d-pho1")

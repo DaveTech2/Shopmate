@@ -2,7 +2,9 @@
 
 Save the time and stress of shopping. Just tell the agent what you want:
 
-1. **You say it** — "I need a Tecno Spark 30, under ₦200k, delivered to Lekki."
+Works in **every country and city** — prices, merchants, delivery fees and payment in the customer's local currency.
+
+1. **You say it** — "I need a Tecno Spark 30, under ₦200k, delivered to Lekki." (or "AirPods to Brooklyn", "a kettle to Westminster")
 2. **It finds it** — live listings with real prices and photos.
 3. **It shows you** the product, price, **delivery fee to your location** and the total delivered price, and asks
    "is this the one?"
@@ -40,6 +42,7 @@ and refuses to take payment.
 | `PAYSTACK_SECRET_KEY` | Paystack checkout links. Use `sk_test_…` while testing. Only currencies enabled on your Paystack business account will work. |
 | `NOWPAYMENTS_API_KEY` | Crypto checkout ([nowpayments.io](https://nowpayments.io)) |
 | `SHOPMATE_ORIGIN` | Dispatch city delivery is calculated from (default `lagos`) |
+| `SHOPMATE_ABROAD` | `local` (default) or `ship` — how customers outside your home country are served |
 | `SHOPMATE_COUNTRY` | Google Shopping country (default `ng`) |
 
 Secrets are read only through Hermes' secret scope (`agent.secret_scope.get_secret`).
@@ -50,7 +53,15 @@ Shopmate is a **concierge store**: the customer pays *you* (the store operator) 
 buy and deliver the items. Live search shows real third-party listings and prices; it does not place orders at those
 merchants. ## Delivery fees
 
-Shown on **every product** once the customer's location is known. Fee = distance band base + per-km charge (from
+Shown on **every product** once the customer's location is known — anywhere in the world. Places in the bundled
+list resolve instantly offline; any other city, town, landmark or full street address is looked up on
+OpenStreetMap (Nominatim). Live search follows the customer's country, so they see local merchants in their local
+currency (falling back to `SHOPMATE_COUNTRY` where Google Shopping isn't available).
+
+Customers in your home country ship from `SHOPMATE_ORIGIN`. Customers abroad are served by merchants in their own
+city (`SHOPMATE_ABROAD=local`, default), or set `SHOPMATE_ABROAD=ship` to ship internationally from your origin.
+Nigerian dispatch uses naira rate tables; everywhere else uses USD tables converted to the local currency.
+ Fee = distance band base + per-km charge (from
 your dispatch city, using built-in coordinates for all 36 Nigerian states + FCT, major cities/areas, and key African
 cities) + a size surcharge (small / medium / large / bulky, inferred from the product). Express = 1.8× and a day faster.
 Edit `RATES` and `SIZE_SURCHARGE` in `delivery.py` to match your logistics partner.
@@ -61,15 +72,16 @@ coordinates. Shopmate also finds the closest pickup stops and offers collection 
 `pickup_stops.json` in the plugin's data directory (same format) and they replace the samples.
 
 Location is never detected silently: the plugin has no access to the customer's device. It works from what the
-customer shares in chat. Coordinates are matched to the nearest known place offline — no geocoding service is called.
+customer shares in chat. Coordinates near a bundled place are named offline; elsewhere they are named via OpenStreetMap.
 With a live Paystack key, Shopmate refuses to charge for demo-catalog items.
 
 ## Disclosures (catalog rule 13)
 
 - **Third-party network calls**: `serpapi.com` (search, only when the key is set), `api.paystack.co` (create and verify
   payments), `api.nowpayments.io` (create and check crypto payments), `open.er-api.com` (exchange rates, no key; only
-  when converting currencies).
-- **Data sent**: the search query to SerpAPI; customer email, amount, currency, order id, item count and city to
+  when converting currencies), `nominatim.openstreetmap.org` (place lookup, only for places not in the bundled list;
+  max 1 request/second, identifying User-Agent, results cached).
+- **Data sent**: the place name/address or coordinates to OpenStreetMap; the search query and country to SerpAPI; customer email, amount, currency, order id, item count and city to
   Paystack; amount in USD, coin, order id and a short description to NOWPayments.
 - **Local storage**: carts, saved delivery locations (coordinates if shared), orders (including customer name, email,
   phone and address) and cached search results live

@@ -50,6 +50,10 @@ def search_demo(query: str, category: str = None, max_price: float = None, limit
     return [dict(t[2]) for t in scored[:limit]]
 
 
+def currency_for(country: str) -> str:
+    return COUNTRY_CURRENCY.get((country or "").lower(), "USD")
+
+
 def search_live(api_key: str, query: str, country: str = "ng", max_price: float = None, limit: int = 10):
     params = {
         "engine": "google_shopping",
@@ -76,7 +80,7 @@ def search_live(api_key: str, query: str, country: str = "ng", max_price: float 
             "title": r.get("title"),
             "price": price,
             "price_display": r.get("price"),
-            "currency": COUNTRY_CURRENCY.get(country, "USD"),
+            "currency": currency_for(country),
             "image": r.get("thumbnail") or r.get("serpapi_thumbnail"),
             "merchant": r.get("source"),
             "link": link,
@@ -109,8 +113,35 @@ def fx_rate(src: str, dst: str) -> float:
     return float(hit[1][dst])
 
 
-COUNTRY_CURRENCY = {"ng": "NGN", "gh": "GHS", "ke": "KES", "za": "ZAR", "us": "USD", "ci": "XOF",
-                    "sn": "XOF", "eg": "EGP", "rw": "RWF", "gb": "GBP"}
+COUNTRY_CURRENCY = {
+    # Africa
+    "ng": "NGN", "gh": "GHS", "ke": "KES", "za": "ZAR", "eg": "EGP", "rw": "RWF", "ug": "UGX", "tz": "TZS",
+    "et": "ETB", "ma": "MAD", "dz": "DZD", "tn": "TND", "zm": "ZMW", "zw": "USD", "mw": "MWK", "mz": "MZN",
+    "ao": "AOA", "na": "NAD", "bw": "BWP", "cm": "XAF", "ga": "XAF", "cg": "XAF", "td": "XAF", "cf": "XAF",
+    "gq": "XAF", "ci": "XOF", "sn": "XOF", "bj": "XOF", "tg": "XOF", "bf": "XOF", "ml": "XOF", "ne": "XOF",
+    "gw": "XOF", "sl": "SLE", "lr": "LRD", "gm": "GMD", "gn": "GNF", "cd": "CDF", "sd": "SDG", "so": "SOS",
+    "mu": "MUR", "mg": "MGA", "ly": "LYD",
+    # Americas
+    "us": "USD", "ca": "CAD", "mx": "MXN", "br": "BRL", "ar": "ARS", "cl": "CLP", "co": "COP", "pe": "PEN",
+    "ve": "VES", "ec": "USD", "uy": "UYU", "py": "PYG", "bo": "BOB", "jm": "JMD", "tt": "TTD", "do": "DOP",
+    "cr": "CRC", "pa": "USD", "gt": "GTQ", "hn": "HNL", "sv": "USD", "ni": "NIO", "cu": "CUP", "ht": "HTG",
+    "bs": "BSD", "bb": "BBD",
+    # Europe
+    "gb": "GBP", "ie": "EUR", "fr": "EUR", "de": "EUR", "it": "EUR", "es": "EUR", "pt": "EUR", "nl": "EUR",
+    "be": "EUR", "lu": "EUR", "at": "EUR", "fi": "EUR", "gr": "EUR", "sk": "EUR", "si": "EUR", "ee": "EUR",
+    "lv": "EUR", "lt": "EUR", "mt": "EUR", "cy": "EUR", "hr": "EUR", "ch": "CHF", "no": "NOK", "se": "SEK",
+    "dk": "DKK", "is": "ISK", "pl": "PLN", "cz": "CZK", "hu": "HUF", "ro": "RON", "bg": "BGN", "rs": "RSD",
+    "ua": "UAH", "ru": "RUB", "by": "BYN", "md": "MDL", "al": "ALL", "mk": "MKD", "ba": "BAM", "tr": "TRY",
+    "ge": "GEL", "am": "AMD", "az": "AZN",
+    # Middle East & Asia
+    "ae": "AED", "sa": "SAR", "qa": "QAR", "kw": "KWD", "bh": "BHD", "om": "OMR", "jo": "JOD", "lb": "LBP",
+    "il": "ILS", "iq": "IQD", "ir": "IRR", "in": "INR", "pk": "PKR", "bd": "BDT", "lk": "LKR", "np": "NPR",
+    "cn": "CNY", "hk": "HKD", "tw": "TWD", "jp": "JPY", "kr": "KRW", "sg": "SGD", "my": "MYR", "id": "IDR",
+    "th": "THB", "vn": "VND", "ph": "PHP", "kh": "KHR", "mm": "MMK", "kz": "KZT", "uz": "UZS", "mn": "MNT",
+    "af": "AFN",
+    # Oceania
+    "au": "AUD", "nz": "NZD", "fj": "FJD", "pg": "PGK",
+}
 
 
 def is_category(c: str) -> bool:

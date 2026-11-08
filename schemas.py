@@ -36,8 +36,9 @@ SET_LOCATION = {
         "product shows the doorstep delivery fee, the nearest pickup stop and the total price. Returns the nearest pickup stops."
     ),
     "parameters": {"type": "object", "properties": {
-        "city": {"type": "string", "description": "City or area, e.g. 'Lekki', 'Wuse', 'Port Harcourt', 'Accra'"},
-        "state": {"type": "string", "description": "Optional state, e.g. 'Lagos', 'Rivers', 'FCT'"},
+        "city": {"type": "string", "description": "Any city, town, area or full street address worldwide, e.g. 'Lekki', 'Brooklyn, New York', '10 Downing St, London'"},
+        "state": {"type": "string", "description": "Optional state/region, e.g. 'Lagos', 'Ontario', 'Greater London'"},
+        "country": {"type": "string", "description": "Optional ISO country code to disambiguate, e.g. 'NG', 'GB', 'US', 'IN'"},
         "lat": {"type": "number", "description": "Latitude from a shared location pin"},
         "lon": {"type": "number", "description": "Longitude from a shared location pin"},
         "shared_location": {"type": "string", "description": "A shared location / Google or Apple Maps link / 'lat,lon' text, pasted as-is"},

@@ -1,5 +1,5 @@
 name: shopmate
-version: "0.1.0"
+version: "0.2.0"
 manifest_version: 2
 api_version: 1
 description: >-
@@ -48,7 +48,11 @@ config_schema:
     type: str
     default: "lagos"
     description: "City you dispatch orders from; delivery fees are calculated from here"
+  SHOPMATE_ABROAD:
+    type: str
+    default: "local"
+    description: "Customers outside your home country: 'local' = served by merchants in their own city, 'ship' = ship internationally from SHOPMATE_ORIGIN"
   SHOPMATE_COUNTRY:
     type: str
     default: "ng"
-    description: "Google Shopping country code for live search"
+    description: "Fallback Google Shopping country (search otherwise follows the customer's country)"

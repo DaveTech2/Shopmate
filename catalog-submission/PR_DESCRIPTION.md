@@ -8,7 +8,7 @@ crypto via NOWPayments. Payment is verified with the provider before an order is
 No hooks, no overrides, no CLI commands. Secrets come from `agent.secret_scope.get_secret`.
 
 **Rule 13 disclosures**
-- Third-party network calls: serpapi.com, api.paystack.co, api.nowpayments.io, open.er-api.com (details in README).
+- Third-party network calls: serpapi.com, api.paystack.co, api.nowpayments.io, open.er-api.com, nominatim.openstreetmap.org (details in README).
 - Stores carts and orders (including customer contact and delivery details) in the plugin data dir.
 - No shell commands, background processes, reads outside plugin data, stored credentials or telemetry.
 - `checkout` requires an explicit `confirm=true` after the user sees the summary; no auto-approval.

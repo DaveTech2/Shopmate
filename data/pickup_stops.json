@@ -7,7 +7,8 @@
    "state": "Lagos",
    "lat": 6.4474,
    "lon": 3.4723,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "aj1",
@@ -15,7 +16,8 @@
    "state": "Lagos",
    "lat": 6.4682,
    "lon": 3.5852,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "vi1",
@@ -23,7 +25,8 @@
    "state": "Lagos",
    "lat": 6.4281,
    "lon": 3.4219,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "ik1",
@@ -31,7 +34,8 @@
    "state": "Lagos",
    "lat": 6.6018,
    "lon": 3.3515,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "yb1",
@@ -39,7 +43,8 @@
    "state": "Lagos",
    "lat": 6.5095,
    "lon": 3.3711,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "su1",
@@ -47,7 +52,8 @@
    "state": "Lagos",
    "lat": 6.5,
    "lon": 3.35,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "ikd",
@@ -55,7 +61,8 @@
    "state": "Lagos",
    "lat": 6.6194,
    "lon": 3.5105,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "fs1",
@@ -63,7 +70,8 @@
    "state": "Lagos",
    "lat": 6.4667,
    "lon": 3.2833,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "ws1",
@@ -71,7 +79,8 @@
    "state": "FCT",
    "lat": 9.07,
    "lon": 7.47,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "gw1",
@@ -79,7 +88,8 @@
    "state": "FCT",
    "lat": 9.11,
    "lon": 7.4,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "ph1",
@@ -87,7 +97,8 @@
    "state": "Rivers",
    "lat": 4.8156,
    "lon": 7.0498,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "ib1",
@@ -95,7 +106,8 @@
    "state": "Oyo",
    "lat": 7.3775,
    "lon": 3.947,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "en1",
@@ -103,7 +115,8 @@
    "state": "Enugu",
    "lat": 6.4584,
    "lon": 7.5464,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "kn1",
@@ -111,7 +124,8 @@
    "state": "Kano",
    "lat": 12.0022,
    "lon": 8.592,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "bn1",
@@ -119,7 +133,8 @@
    "state": "Edo",
    "lat": 6.335,
    "lon": 5.6037,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   },
   {
    "id": "ab1",
@@ -127,7 +142,8 @@
    "state": "Ogun",
    "lat": 7.1475,
    "lon": 3.3619,
-   "hours": "Mon-Sat 9am-6pm"
+   "hours": "Mon-Sat 9am-6pm",
+   "country": "NG"
   }
  ]
 }

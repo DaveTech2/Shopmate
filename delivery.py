@@ -1,9 +1,9 @@
 """Location-based delivery pricing.
 
 Fee = base for the distance band + per-km charge + size surcharge per item, from the store's
-dispatch city to the customer's location. Express costs more and arrives sooner. All amounts are
-NGN and are converted for display when the cart is priced in another currency. Edit RATES to match
-your logistics partner.
+dispatch point to the customer's location, anywhere in the world. Express costs more and arrives
+sooner. Shipments from Nigeria use the NGN tables; everywhere else uses the USD tables. Fees are
+converted to the customer's currency for display. Edit the tables to match your logistics partner.
 """
 
 import json
@@ -13,13 +13,25 @@ from pathlib import Path
 
 PLACES = json.loads((Path(__file__).parent / "data" / "locations.json").read_text("utf-8"))
 
-RATES = {
-    "same_city": {"base": 1500, "per_km": 0, "eta": (0, 1)},      # within ~25 km of dispatch
-    "regional": {"base": 2500, "per_km": 8, "eta": (1, 2)},       # up to 300 km
-    "national": {"base": 3500, "per_km": 10, "eta": (2, 5)},      # rest of Nigeria
-    "international": {"base": 25000, "per_km": 6, "eta": (7, 14)},  # other countries (courier)
+RATE_TABLES = {
+    "NGN": {
+        "same_city": {"base": 1500, "per_km": 0, "eta": (0, 1)},        # within ~25 km of dispatch
+        "regional": {"base": 2500, "per_km": 8, "eta": (1, 2)},         # up to 300 km
+        "national": {"base": 3500, "per_km": 10, "eta": (2, 5)},        # rest of the country
+        "international": {"base": 25000, "per_km": 6, "eta": (7, 14)},  # other countries (courier)
+        "size": {"small": 0, "medium": 1000, "large": 4000, "bulky": 12000},
+    },
+    "USD": {
+        "same_city": {"base": 5, "per_km": 0, "eta": (0, 1)},
+        "regional": {"base": 8, "per_km": 0.02, "eta": (1, 3)},
+        "national": {"base": 12, "per_km": 0.015, "eta": (2, 6)},
+        "international": {"base": 35, "per_km": 0.004, "eta": (6, 14)},
+        "size": {"small": 0, "medium": 4, "large": 15, "bulky": 60},
+    },
 }
-SIZE_SURCHARGE = {"small": 0, "medium": 1000, "large": 4000, "bulky": 12000}
+NGN_ORIGINS = {"NG"}
+RATES = RATE_TABLES["NGN"]           # backwards-compatible aliases
+SIZE_SURCHARGE = RATES["size"]
 EXPRESS = {"multiplier": 1.8, "days_faster": 1}
 ROAD_FACTOR = 1.3  # straight-line → road distance
 
@@ -41,8 +53,20 @@ def size_class(product: dict) -> str:
     return _CAT_SIZE.get(product.get("category"), "medium")
 
 
-def resolve(city: str = None, state: str = None) -> dict:
-    """Find a place by city, area, or state name."""
+def resolve(city: str = None, state: str = None, country: str = None) -> dict:
+    """Find a place by city, area, address or state name — anywhere in the world.
+
+    Bundled offline list first (instant), then OpenStreetMap for everything else."""
+    p = _resolve_offline(city, state) if not country or country.upper() == "NG" else None
+    if p:
+        return p
+    from . import geo
+    text = ", ".join(x for x in (city, state) if x)
+    hit = geo.search(text, country) if text else None
+    return dict(hit, key=text.lower()) if hit else None
+
+
+def _resolve_offline(city: str = None, state: str = None) -> dict:
     for q in (city, state):
         k = (q or "").strip().lower().replace(" state", "")
         if not k:
@@ -63,9 +87,11 @@ def _km(a, b) -> float:
 
 
 def quote(origin: dict, dest: dict, items, speed: str = "standard") -> dict:
-    """items: list of (product, qty). Returns fee in NGN, ETA and breakdown."""
+    """items: list of (product, qty). Returns fee (in fee_currency), ETA and breakdown."""
     km = _km(origin, dest)
-    if dest["country"] != origin["country"]:
+    table = RATE_TABLES["NGN" if origin.get("country") in NGN_ORIGINS else "USD"]
+    cur = "NGN" if origin.get("country") in NGN_ORIGINS else "USD"
+    if dest.get("country") != origin.get("country"):
         band = "international"
     elif km <= 25:
         band = "same_city"
@@ -73,20 +99,22 @@ def quote(origin: dict, dest: dict, items, speed: str = "standard") -> dict:
         band = "regional"
     else:
         band = "national"
-    r = RATES[band]
+    r = table[band]
     distance_fee = r["base"] + r["per_km"] * km
     size_fee = 0
     for p, q in items:
-        s = SIZE_SURCHARGE[size_class(p)]
+        s = table["size"][size_class(p)]
         size_fee += s + (s * 0.5 * (q - 1))  # extra units of the same item cost half
     fee = distance_fee + size_fee
     lo, hi = r["eta"]
     if speed == "express":
         fee *= EXPRESS["multiplier"]
         lo, hi = max(0, lo - EXPRESS["days_faster"]), max(1, hi - EXPRESS["days_faster"])
-    fee = int(math.ceil(fee / 100.0) * 100)
+    step = 100 if cur == "NGN" else 0.5
+    fee = math.ceil(fee / step) * step
+    fee = int(fee) if cur == "NGN" else round(fee, 2)
     eta = "same day" if hi == 0 else ("%d-%d days" % (lo, hi) if lo else "within %d day%s" % (hi, "s" if hi > 1 else ""))
-    return {"fee": fee, "eta": eta, "band": band.replace("_", " "), "distance_km": round(km),
+    return {"fee": fee, "fee_currency": cur, "eta": eta, "band": band.replace("_", " "), "distance_km": round(km),
             "breakdown": {"distance": int(round(distance_fee * (EXPRESS["multiplier"] if speed == "express" else 1))),
                           "size": int(round(size_fee * (EXPRESS["multiplier"] if speed == "express" else 1)))}}
 
@@ -126,9 +154,22 @@ def nearest_place(lat: float, lon: float) -> dict:
 
 def from_coords(lat: float, lon: float) -> dict:
     near = nearest_place(lat, lon)
-    name = near["name"] if near["near_km"] <= 15 else "%s area (%.0f km away)" % (near["name"], near["near_km"])
-    return {"name": name, "state": near.get("state"), "country": near["country"], "lat": lat, "lon": lon,
-            "precise": True, "nearest_known": near["name"]}
+    if near["near_km"] <= 15:
+        return {"name": near["name"], "state": near.get("state"), "country": near["country"], "lat": lat, "lon": lon,
+                "precise": True, "nearest_known": near["name"]}
+    from . import geo
+    hit = geo.reverse(lat, lon)
+    if hit and hit.get("country"):
+        return dict(hit, lat=lat, lon=lon, precise=True, nearest_known=hit.get("city") or hit["name"])
+    return {"name": "%s area (%.0f km away)" % (near["name"], near["near_km"]), "state": near.get("state"),
+            "country": near["country"], "lat": lat, "lon": lon, "precise": True, "nearest_known": near["name"]}
+
+
+def local_origin(loc: dict) -> dict:
+    """Dispatch from the centre of the customer's own city (local-merchant fulfilment)."""
+    city = loc.get("city") or loc.get("nearest_known") or loc.get("name")
+    o = resolve(city, None, loc.get("country")) if city else None
+    return o or dict(loc)
 
 
 def _load_stops():
@@ -157,6 +198,8 @@ def find_stop(stop_id: str):
 
 
 def pickup_quote(origin, stop, items, speed="standard"):
-    q = quote(origin, dict(stop, country=origin["country"]), items, speed)
-    q["fee"] = int(math.ceil(q["fee"] * PICKUP_DISCOUNT / 100.0) * 100)
+    q = quote(origin, dict(stop, country=stop.get("country") or origin["country"]), items, speed)
+    step = 100 if q["fee_currency"] == "NGN" else 0.5
+    q["fee"] = math.ceil(q["fee"] * PICKUP_DISCOUNT / step) * step
+    q["fee"] = int(q["fee"]) if q["fee_currency"] == "NGN" else round(q["fee"], 2)
     return q
