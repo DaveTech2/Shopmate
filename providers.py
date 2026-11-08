@@ -34,19 +34,20 @@ def _http_json(url: str, data: bytes = None, headers: dict = None, method: str =
 
 
 def search_demo(query: str, category: str = None, max_price: float = None, limit: int = 10):
-    q = (query or "").lower().split()
-    out = []
+    words = [w for w in (query or "").lower().split() if len(w) > 1]
+    scored = []
     for p in DEMO.values():
         if category and p["category"] != category:
             continue
         if max_price and p["price"] > max_price:
             continue
-        hay = (p["title"] + " " + p["category"]).lower()
-        if q and not all(w in hay for w in q):
+        hay = (p["title"] + " " + p["category"] + " " + category_name(p["category"])).lower()
+        score = sum(1 for w in words if w in hay or w.rstrip("s") in hay)
+        if words and score < max(1, (len(words) + 1) // 2):
             continue
-        out.append(p)
-    out.sort(key=lambda p: p["price"])
-    return out[:limit]
+        scored.append((-score, p["price"], p))
+    scored.sort(key=lambda t: (t[0], t[1]))
+    return [dict(t[2]) for t in scored[:limit]]
 
 
 def search_live(api_key: str, query: str, country: str = "ng", max_price: float = None, limit: int = 10):

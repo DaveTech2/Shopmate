@@ -14,7 +14,8 @@ SHOP_SEARCH = {
         "Search products. With a search term and live search configured, returns real current prices, photos and "
         "merchants from Google Shopping; otherwise returns the demo catalog (sample prices — say so). "
         "Show each result with its image as markdown ![title](image), price and merchant. "
-        "To browse a section, pass category with an empty query."
+        "Every result carries delivery_display and total_delivered for the customer's saved location — always show "
+        "them. best_match is the top pick to present for confirmation. To browse a section, pass category with an empty query."
     ),
     "parameters": {
         "type": "object",
@@ -25,6 +26,18 @@ SHOP_SEARCH = {
             "limit": {"type": "integer", "description": "Max results (1-20, default 8)"},
         },
     },
+}
+
+SET_LOCATION = {
+    "name": "set_location",
+    "description": (
+        "Save where the customer wants delivery (city/area and optionally state). Do this early: once set, every "
+        "product shown includes its delivery fee and total delivered price to this location."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "city": {"type": "string", "description": "City or area, e.g. 'Lekki', 'Wuse', 'Port Harcourt', 'Accra'"},
+        "state": {"type": "string", "description": "Optional state, e.g. 'Lagos', 'Rivers', 'FCT'"},
+    }, "required": ["city"]},
 }
 
 SHOP_PRODUCT = {
@@ -61,11 +74,12 @@ CART_CLEAR = {
 
 DELIVERY_QUOTE = {
     "name": "delivery_quote",
-    "description": "Quote the delivery fee and estimated delivery time for the current cart to a city.",
+    "description": "Quote the delivery fee (distance + item size) and delivery time for the current cart to the saved location or a given city.",
     "parameters": {"type": "object", "properties": {
-        "city": {"type": "string"},
+        "city": {"type": "string", "description": "Optional; defaults to the saved location"},
+        "state": {"type": "string"},
         "speed": {"type": "string", "enum": ["standard", "express"]},
-    }, "required": ["city"]},
+    }},
 }
 
 PAYMENT_OPTIONS = {
@@ -86,13 +100,14 @@ CHECKOUT = {
         "email": {"type": "string"},
         "phone": {"type": "string"},
         "address": {"type": "string", "description": "Street address and landmark"},
-        "city": {"type": "string"},
+        "city": {"type": "string", "description": "Optional if set_location was called"},
+        "state": {"type": "string"},
         "speed": {"type": "string", "enum": ["standard", "express"]},
         "payment_method": {"type": "string", "enum": ["paystack", "crypto"], "description": "Default paystack"},
         "currency": {"type": "string", "description": "Paystack currency: NGN, GHS, KES, ZAR, USD, XOF, EGP or RWF (default: cart currency)"},
         "crypto_coin": {"type": "string", "description": "For crypto: usdt, usdc, btc, eth, sol, bnb, trx, ltc (default usdt on TRC20)"},
         "confirm": {"type": "boolean", "description": "true only after the user approved the summary"},
-    }, "required": ["full_name", "email", "phone", "address", "city"]},
+    }, "required": ["full_name", "email", "phone", "address"]},
 }
 
 ORDER_STATUS = {

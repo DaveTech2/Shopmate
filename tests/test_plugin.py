@@ -85,10 +85,25 @@ assert "shopmate-shopping" in ctx.skills
 # --- demo mode (no keys)
 r = call(ctx, "shop_categories"); assert len(r["categories"]) == 10 and r["live_search"] is False
 r = call(ctx, "shop_search", category="phones"); assert r["count"] == 5 and "Demo" in r["note"]
-r = call(ctx, "shop_search", query="rice"); assert r["results"][0]["id"] == "d-gro3"
+assert "ask_location" in r and "set your location" in r["results"][0]["delivery_display"]
+r = call(ctx, "set_location", city="Atlantis"); assert "error" in r
+r = call(ctx, "set_location", city="Lekki Phase 1"); assert r["location"] == "Lekki, Lagos", r
+near = call(ctx, "shop_search", query="rice")
+assert near["results"][0]["id"] == "d-gro3" and near["best_match"] == "d-gro3"
+assert near["results"][0]["size"] == "bulky" and near["results"][0]["total_delivered"].startswith("₦")
+call(ctx, "set_location", city="Kano", conv="far")
+far = call(ctx, "shop_search", query="rice", conv="far")
+assert far["results"][0]["delivery_fee"] > near["results"][0]["delivery_fee"], (far, near)
+earbuds = call(ctx, "shop_search", query="oraimo earbuds")["results"][0]
+assert earbuds["size"] == "small" and earbuds["delivery_fee"] < near["results"][0]["delivery_fee"]
+r = call(ctx, "shop_search", query="tecno phone"); assert r["results"] and "Tecno" in r["results"][0]["title"]
+r = call(ctx, "shop_product", product_id="d-pho1"); assert "delivery_express" in r["product"]
+r = call(ctx, "set_location", city="Accra", conv="gh"); assert r["zone"] == "international"
+print("lekki rice", near["results"][0]["delivery_display"], "| kano rice", far["results"][0]["delivery_display"], "| lekki earbuds", earbuds["delivery_display"])
 r = call(ctx, "cart_add", product_id="d-gro3", quantity=2); assert r["subtotal"] == 124000
-r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080", address="1 Rd", city="Lagos")
-assert r["status"] == "needs_confirmation" and r["summary"]["delivery_fee"] == "₦2,500"
+v = call(ctx, "cart_view"); assert v["delivering_to"] == "Lekki, Lagos" and "total_delivered" in v
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080", address="1 Rd")
+assert r["status"] == "needs_confirmation" and r["summary"]["delivery_fee"] == v["delivery_fee"], (r, v)
 r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080", address="1 Rd", city="Lagos", confirm=True)
 assert "not configured" in r["error"], r
 r = call(ctx, "cart_add", product_id="nope"); assert "error" in r

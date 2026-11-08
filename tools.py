@@ -6,16 +6,8 @@ import time
 import uuid
 from functools import wraps
 
-from . import payments, providers, store
+from . import delivery, payments, providers, store
 
-DELIVERY_ZONES = [
-    # (cities, standard fee NGN, standard ETA days)
-    ({"lagos", "ikeja", "lekki", "ikorodu", "yaba", "surulere", "ajah"}, 2500, "1-2"),
-    ({"abuja", "port harcourt", "ibadan", "abeokuta", "ota"}, 4000, "2-4"),
-]
-OTHER_ZONE = (5500, "3-6")
-EXPRESS_MULTIPLIER = 1.8
-FREE_DELIVERY_OVER = 150000
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -70,7 +62,7 @@ def _cart_summary(data, cid):
         unit = p["price"] if cur == base else round(p["price"] * providers.fx_rate(cur, base), 2)
         line = unit * qty
         subtotal += line
-        lines.append({"id": pid, "title": p["title"], "qty": qty, "unit_price": unit, "currency": base,
+        lines.append({"id": pid, "title": p["title"], "category": p.get("category"), "qty": qty, "unit_price": unit, "currency": base,
                       "line_total": line, "image": p.get("image"), "merchant": p.get("merchant"),
                       "price_source": p.get("price_source")})
     return lines, subtotal
@@ -80,20 +72,38 @@ def _base_currency(lines):
     return lines[0]["currency"] if lines else "NGN"
 
 
-def _quote(city: str, speed: str, subtotal: float):
-    c = (city or "").strip().lower()
-    fee, eta = OTHER_ZONE
-    for cities, f, e in DELIVERY_ZONES:
-        if c in cities:
-            fee, eta = f, e
-            break
-    if speed == "express":
-        fee = round(fee * EXPRESS_MULTIPLIER, -2)
-        lo, hi = eta.split("-")
-        eta = "%d-%d" % (max(1, int(lo) - 1), max(1, int(hi) - 1)) if int(hi) > 1 else "same day-1"
-    if subtotal >= FREE_DELIVERY_OVER and speed != "express":
-        fee = 0
-    return fee, eta + " days" if "day" not in eta else eta
+def _origin():
+    o = delivery.resolve(providers.get_secret("SHOPMATE_ORIGIN") or "lagos")
+    return o or delivery.resolve("lagos")
+
+
+def _location(data, cid):
+    return data.get("locations", {}).get(cid)
+
+
+def _ship(items, loc, speed="standard", currency="NGN"):
+    """Delivery quote for [(product, qty)] to loc, in `currency`."""
+    q = delivery.quote(_origin(), loc, items, speed)
+    rate = providers.fx_rate("NGN", currency) if currency != "NGN" else 1.0
+    q["fee"] = round(q["fee"] * rate, 2) if currency != "NGN" else q["fee"]
+    q["fee_display"] = _money(q["fee"], currency)
+    q["to"] = loc["name"] + (", " + loc["state"] if loc.get("state") else "")
+    return q
+
+
+def _annotate(products, loc, speed="standard"):
+    """Add delivery fee + total to each product so the customer sees the full price."""
+    for p in products:
+        cur = p.get("currency") or "NGN"
+        p["price_display"] = p.get("price_display") or _money(p["price"], cur)
+        p["size"] = delivery.size_class(p)
+        if loc:
+            q = _ship([(p, 1)], loc, speed, cur)
+            p["delivery_fee"], p["delivery_display"], p["delivery_eta"] = q["fee"], q["fee_display"], q["eta"]
+            p["total_delivered"] = _money(p["price"] + q["fee"], cur)
+        else:
+            p["delivery_display"] = "set your location to see delivery fee"
+    return products
 
 
 # ---------- browsing ----------
@@ -132,18 +142,46 @@ def shop_search(args, **kwargs):
         results = providers.search_demo(query, category, max_price, limit)
         note = ("Demo catalog: sample prices, not live. Set SERPAPI_API_KEY for real prices and photos."
                 if not key else "Browsing a section from the demo catalog; give a search term for live prices.")
-    for r in results:
-        r["price_display"] = r.get("price_display") or _money(r["price"], r.get("currency"))
-    return _ok(results=results, count=len(results), note=note)
+    loc = store.read(lambda d: _location(d, _cid(kwargs)))
+    _annotate(results, loc)
+    out = dict(results=results, count=len(results), note=note)
+    if results:
+        out["best_match"] = results[0]["id"]
+    if not loc:
+        out["ask_location"] = "Ask the customer for their city/area so every product shows its delivery fee (set_location)."
+    else:
+        out["delivering_to"] = loc["name"] + (", " + loc["state"] if loc.get("state") else "")
+    return _ok(**out)
 
 
 @safe
 def shop_product(args, **kwargs):
     pid = args.get("product_id")
-    p = store.read(lambda d: _find_product(d, pid))
+    cid = _cid(kwargs)
+    p, loc = store.read(lambda d: (_find_product(d, pid), _location(d, cid)))
     if not p:
         return _err("Product not found; search again to refresh results", product_id=pid)
-    return _ok(product=dict(p, price_display=p.get("price_display") or _money(p["price"], p.get("currency"))))
+    p = _annotate([dict(p)], loc)[0]
+    if loc:
+        p["delivery_express"] = _ship([(p, 1)], loc, "express", p.get("currency") or "NGN")["fee_display"]
+    return _ok(product=p)
+
+
+@safe
+def set_location(args, **kwargs):
+    cid = _cid(kwargs)
+    loc = delivery.resolve(args.get("city"), args.get("state"))
+    if not loc:
+        return _err("I couldn't place that location. Ask for the nearest big city or the state.",
+                    examples=["Lekki", "Ikeja", "Abuja", "Port Harcourt", "Kano", "Enugu", "Accra"])
+    loc = dict(loc, area=args.get("city"))
+    store.transact(lambda d: d.setdefault("locations", {}).__setitem__(cid, loc))
+    o = _origin()
+    sample = delivery.quote(o, loc, [({"title": "", "category": "phones"}, 1)])
+    return _ok(location=loc["name"] + (", " + loc["state"] if loc.get("state") else ""), country=loc["country"],
+               ships_from=o["name"], distance_km=sample["distance_km"], zone=sample["band"],
+               typical_eta=sample["eta"], small_item_fee=_naira(sample["fee"]),
+               note="Every product will now show its delivery fee to this location.")
 
 
 # ---------- cart ----------
@@ -191,8 +229,15 @@ def cart_remove(args, **kwargs):
 
 @safe
 def cart_view(args, **kwargs):
-    lines, subtotal = store.read(lambda d: _cart_summary(d, _cid(kwargs)))
-    return _ok(cart=lines, items=sum(l["qty"] for l in lines), subtotal=subtotal, subtotal_display=_money(subtotal, _base_currency(lines)))
+    cid = _cid(kwargs)
+    (lines, subtotal), loc = store.read(lambda d: (_cart_summary(d, cid), _location(d, cid)))
+    cur = _base_currency(lines)
+    out = dict(cart=lines, items=sum(l["qty"] for l in lines), subtotal=subtotal, subtotal_display=_money(subtotal, cur))
+    if lines and loc:
+        q = _ship([(l, l["qty"]) for l in lines], loc, "standard", cur)
+        out.update(delivery_fee=q["fee_display"], delivery_eta=q["eta"], delivering_to=q["to"],
+                   total_delivered=_money(subtotal + q["fee"], cur))
+    return _ok(**out)
 
 
 @safe
@@ -204,23 +249,21 @@ def cart_clear(args, **kwargs):
 
 # ---------- delivery & checkout ----------
 
-def _delivery_fee(city, speed, subtotal, currency):
-    """Zone fees are set in NGN; converted when the cart is priced in another currency."""
-    rate = providers.fx_rate("NGN", currency) if currency != "NGN" else 1.0
-    fee, eta = _quote(city, speed, subtotal / rate if rate else subtotal)
-    return round(fee * rate, 2), eta
-
-
 @safe
 def delivery_quote(args, **kwargs):
     speed = args.get("speed") or "standard"
     if speed not in ("standard", "express"):
         return _err("speed must be standard or express")
-    lines, subtotal = store.read(lambda d: _cart_summary(d, _cid(kwargs)))
+    cid = _cid(kwargs)
+    (lines, subtotal), loc = store.read(lambda d: (_cart_summary(d, cid), _location(d, cid)))
+    if args.get("city"):
+        loc = delivery.resolve(args["city"], args.get("state")) or loc
+    if not loc:
+        return _err("No location yet; ask the customer for their city or area, then call set_location.")
     cur = _base_currency(lines)
-    fee, eta = _delivery_fee(args.get("city"), speed, subtotal, cur)
-    return _ok(city=args.get("city"), speed=speed, fee=fee, fee_display=_money(fee, cur), eta=eta,
-               free_delivery_over=_naira(FREE_DELIVERY_OVER) + " (standard delivery)")
+    items = [(l, l["qty"]) for l in lines] or [({"title": "", "category": "phones"}, 1)]
+    q = _ship(items, loc, speed, cur)
+    return _ok(speed=speed, **q)
 
 
 @safe
@@ -237,10 +280,16 @@ def payment_options(args, **kwargs):
 @safe
 def checkout(args, **kwargs):
     cid = _cid(kwargs)
+    saved = store.read(lambda d: _location(d, cid))
+    if not args.get("city") and saved:
+        args = dict(args, city=saved.get("area") or saved["name"])
     required = ["full_name", "email", "phone", "address", "city"]
     missing = [k for k in required if not str(args.get(k) or "").strip()]
     if missing:
         return _err("Missing delivery details", missing=missing)
+    loc = delivery.resolve(args["city"], args.get("state")) or saved
+    if not loc:
+        return _err("I couldn't place that city for delivery; ask for the nearest big city or state.")
     if not _EMAIL.match(args["email"].strip()):
         return _err("Email address looks invalid")
     speed = args.get("speed") or "standard"
@@ -252,7 +301,8 @@ def checkout(args, **kwargs):
     if not lines:
         return _err("Cart is empty")
     base = _base_currency(lines)
-    fee, eta = _delivery_fee(args["city"], speed, subtotal, base)
+    q = _ship([(l, l["qty"]) for l in lines], loc, speed, base)
+    fee, eta = q["fee"], q["eta"]
     total = round(subtotal + fee, 2)
 
     if method == "paystack":
@@ -270,7 +320,8 @@ def checkout(args, **kwargs):
 
     summary = dict(items=[{"title": l["title"], "qty": l["qty"], "line_total": _money(l["line_total"], base)} for l in lines],
                    subtotal=_money(subtotal, base), delivery_fee=_money(fee, base), delivery_eta=eta,
-                   total=_money(total, base), deliver_to="%s, %s, %s" % (args["full_name"], args["address"], args["city"]),
+                   total=_money(total, base), deliver_to="%s, %s, %s" % (args["full_name"], args["address"], q["to"]),
+                   delivery_distance_km=q["distance_km"],
                    pay_with=("Paystack (%s)" % pay_cur) if method == "paystack" else "Crypto (%s)" % coin,
                    amount_to_pay=_money(charge, pay_cur) + ("" if method == "paystack" else " worth of " + coin.upper()))
     if pay_cur != base:

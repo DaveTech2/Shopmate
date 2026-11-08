@@ -41,12 +41,12 @@ def _path() -> Path:
 def _load() -> dict:
     p = _path()
     if not p.exists():
-        return {"carts": {}, "orders": {}, "products": {}}
+        return {"carts": {}, "orders": {}, "products": {}, "locations": {}}
     try:
         data = json.loads(p.read_text("utf-8"))
     except Exception:
         data = {}
-    for k in ("carts", "orders", "products"):
+    for k in ("carts", "orders", "products", "locations"):
         data.setdefault(k, {})
     return data
 

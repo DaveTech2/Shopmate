@@ -1,7 +1,13 @@
-# Shopmate 🛒 — a shopping agent for Hermes
+# Shopmate 🛒 — your personal shopper agent for Hermes
 
-Turn Hermes into a full shopping assistant: browse product sections, search **live prices with photos**, build a
-cart, get a delivery quote, and pay with **Paystack in local currencies** or with **crypto** — all in one chat.
+Save the time and stress of shopping. Just tell the agent what you want:
+
+1. **You say it** — "I need a Tecno Spark 30, under ₦200k, delivered to Lekki."
+2. **It finds it** — live listings with real prices and photos.
+3. **It shows you** the product, price, **delivery fee to your location** and the total delivered price, and asks
+   "is this the one?"
+4. **You say yes** — it takes payment (Paystack in your local currency, or crypto).
+5. **It's delivered** to your address, and the agent tracks the order.
 
 ```
 hermes plugins install shopmate
@@ -12,10 +18,11 @@ hermes plugins enable shopmate
 
 | Step | Tools |
 |---|---|
+| Save delivery location; every product then shows its delivery fee | `set_location` |
 | Browse 10 sections (groceries, phones, electronics, fashion, home & kitchen, beauty, baby, health, sports, automotive) | `shop_categories`, `shop_search` |
 | Live product search — real prices, images, merchant names (Google Shopping) | `shop_search`, `shop_product` |
 | Cart | `cart_add`, `cart_remove`, `cart_view`, `cart_clear` |
-| Delivery fee + ETA by city, standard or express | `delivery_quote` |
+| Delivery fee + ETA by distance and item size, standard or express | `delivery_quote` |
 | Pay: Paystack (NGN, GHS, KES, ZAR, USD, XOF, EGP, RWF) or crypto (USDT, USDC, BTC, ETH, SOL, BNB, TRX, LTC) | `payment_options`, `checkout` |
 | Verify payment and track the order | `order_status` |
 
@@ -32,6 +39,7 @@ and refuses to take payment.
 | `SERPAPI_API_KEY` | Live Google Shopping results ([serpapi.com](https://serpapi.com)) |
 | `PAYSTACK_SECRET_KEY` | Paystack checkout links. Use `sk_test_…` while testing. Only currencies enabled on your Paystack business account will work. |
 | `NOWPAYMENTS_API_KEY` | Crypto checkout ([nowpayments.io](https://nowpayments.io)) |
+| `SHOPMATE_ORIGIN` | Dispatch city delivery is calculated from (default `lagos`) |
 | `SHOPMATE_COUNTRY` | Google Shopping country (default `ng`) |
 
 Secrets are read only through Hermes' secret scope (`agent.secret_scope.get_secret`).
@@ -40,7 +48,12 @@ Secrets are read only through Hermes' secret scope (`agent.secret_scope.get_secr
 
 Shopmate is a **concierge store**: the customer pays *you* (the store operator) through Paystack or NOWPayments, and you
 buy and deliver the items. Live search shows real third-party listings and prices; it does not place orders at those
-merchants. Delivery fees and ETAs are the zone table in `tools.py` — edit them to match your logistics partner.
+merchants. ## Delivery fees
+
+Shown on **every product** once the customer's location is known. Fee = distance band base + per-km charge (from
+your dispatch city, using built-in coordinates for all 36 Nigerian states + FCT, major cities/areas, and key African
+cities) + a size surcharge (small / medium / large / bulky, inferred from the product). Express = 1.8× and a day faster.
+Edit `RATES` and `SIZE_SURCHARGE` in `delivery.py` to match your logistics partner.
 With a live Paystack key, Shopmate refuses to charge for demo-catalog items.
 
 ## Disclosures (catalog rule 13)

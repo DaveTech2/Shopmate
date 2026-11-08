@@ -1,0 +1,751 @@
+{
+"umuahia": {
+"name": "Umuahia",
+"state": "Abia",
+"country": "NG",
+"lat": 5.53,
+"lon": 7.49
+},
+"abia": {
+"name": "Umuahia",
+"state": "Abia",
+"country": "NG",
+"lat": 5.53,
+"lon": 7.49
+},
+"yola": {
+"name": "Yola",
+"state": "Adamawa",
+"country": "NG",
+"lat": 9.21,
+"lon": 12.48
+},
+"adamawa": {
+"name": "Yola",
+"state": "Adamawa",
+"country": "NG",
+"lat": 9.21,
+"lon": 12.48
+},
+"uyo": {
+"name": "Uyo",
+"state": "Akwa Ibom",
+"country": "NG",
+"lat": 5.04,
+"lon": 7.91
+},
+"akwa ibom": {
+"name": "Uyo",
+"state": "Akwa Ibom",
+"country": "NG",
+"lat": 5.04,
+"lon": 7.91
+},
+"awka": {
+"name": "Awka",
+"state": "Anambra",
+"country": "NG",
+"lat": 6.21,
+"lon": 7.07
+},
+"anambra": {
+"name": "Awka",
+"state": "Anambra",
+"country": "NG",
+"lat": 6.21,
+"lon": 7.07
+},
+"bauchi": {
+"name": "Bauchi",
+"state": "Bauchi",
+"country": "NG",
+"lat": 10.31,
+"lon": 9.84
+},
+"yenagoa": {
+"name": "Yenagoa",
+"state": "Bayelsa",
+"country": "NG",
+"lat": 4.92,
+"lon": 6.27
+},
+"bayelsa": {
+"name": "Yenagoa",
+"state": "Bayelsa",
+"country": "NG",
+"lat": 4.92,
+"lon": 6.27
+},
+"makurdi": {
+"name": "Makurdi",
+"state": "Benue",
+"country": "NG",
+"lat": 7.73,
+"lon": 8.54
+},
+"benue": {
+"name": "Makurdi",
+"state": "Benue",
+"country": "NG",
+"lat": 7.73,
+"lon": 8.54
+},
+"maiduguri": {
+"name": "Maiduguri",
+"state": "Borno",
+"country": "NG",
+"lat": 11.83,
+"lon": 13.15
+},
+"borno": {
+"name": "Maiduguri",
+"state": "Borno",
+"country": "NG",
+"lat": 11.83,
+"lon": 13.15
+},
+"calabar": {
+"name": "Calabar",
+"state": "Cross River",
+"country": "NG",
+"lat": 4.95,
+"lon": 8.32
+},
+"cross river": {
+"name": "Calabar",
+"state": "Cross River",
+"country": "NG",
+"lat": 4.95,
+"lon": 8.32
+},
+"asaba": {
+"name": "Asaba",
+"state": "Delta",
+"country": "NG",
+"lat": 6.2,
+"lon": 6.73
+},
+"delta": {
+"name": "Asaba",
+"state": "Delta",
+"country": "NG",
+"lat": 6.2,
+"lon": 6.73
+},
+"abakaliki": {
+"name": "Abakaliki",
+"state": "Ebonyi",
+"country": "NG",
+"lat": 6.32,
+"lon": 8.11
+},
+"ebonyi": {
+"name": "Abakaliki",
+"state": "Ebonyi",
+"country": "NG",
+"lat": 6.32,
+"lon": 8.11
+},
+"benin city": {
+"name": "Benin City",
+"state": "Edo",
+"country": "NG",
+"lat": 6.34,
+"lon": 5.63
+},
+"edo": {
+"name": "Benin City",
+"state": "Edo",
+"country": "NG",
+"lat": 6.34,
+"lon": 5.63
+},
+"ado-ekiti": {
+"name": "Ado-Ekiti",
+"state": "Ekiti",
+"country": "NG",
+"lat": 7.62,
+"lon": 5.22
+},
+"ekiti": {
+"name": "Ado-Ekiti",
+"state": "Ekiti",
+"country": "NG",
+"lat": 7.62,
+"lon": 5.22
+},
+"enugu": {
+"name": "Enugu",
+"state": "Enugu",
+"country": "NG",
+"lat": 6.46,
+"lon": 7.55
+},
+"abuja": {
+"name": "Abuja",
+"state": "FCT",
+"country": "NG",
+"lat": 9.06,
+"lon": 7.49
+},
+"fct": {
+"name": "Abuja",
+"state": "FCT",
+"country": "NG",
+"lat": 9.06,
+"lon": 7.49
+},
+"gombe": {
+"name": "Gombe",
+"state": "Gombe",
+"country": "NG",
+"lat": 10.29,
+"lon": 11.17
+},
+"owerri": {
+"name": "Owerri",
+"state": "Imo",
+"country": "NG",
+"lat": 5.48,
+"lon": 7.03
+},
+"imo": {
+"name": "Owerri",
+"state": "Imo",
+"country": "NG",
+"lat": 5.48,
+"lon": 7.03
+},
+"dutse": {
+"name": "Dutse",
+"state": "Jigawa",
+"country": "NG",
+"lat": 11.76,
+"lon": 9.34
+},
+"jigawa": {
+"name": "Dutse",
+"state": "Jigawa",
+"country": "NG",
+"lat": 11.76,
+"lon": 9.34
+},
+"kaduna": {
+"name": "Kaduna",
+"state": "Kaduna",
+"country": "NG",
+"lat": 10.52,
+"lon": 7.44
+},
+"kano": {
+"name": "Kano",
+"state": "Kano",
+"country": "NG",
+"lat": 12.0,
+"lon": 8.52
+},
+"katsina": {
+"name": "Katsina",
+"state": "Katsina",
+"country": "NG",
+"lat": 12.99,
+"lon": 7.6
+},
+"birnin kebbi": {
+"name": "Birnin Kebbi",
+"state": "Kebbi",
+"country": "NG",
+"lat": 12.45,
+"lon": 4.2
+},
+"kebbi": {
+"name": "Birnin Kebbi",
+"state": "Kebbi",
+"country": "NG",
+"lat": 12.45,
+"lon": 4.2
+},
+"lokoja": {
+"name": "Lokoja",
+"state": "Kogi",
+"country": "NG",
+"lat": 7.8,
+"lon": 6.74
+},
+"kogi": {
+"name": "Lokoja",
+"state": "Kogi",
+"country": "NG",
+"lat": 7.8,
+"lon": 6.74
+},
+"ilorin": {
+"name": "Ilorin",
+"state": "Kwara",
+"country": "NG",
+"lat": 8.5,
+"lon": 4.55
+},
+"kwara": {
+"name": "Ilorin",
+"state": "Kwara",
+"country": "NG",
+"lat": 8.5,
+"lon": 4.55
+},
+"ikeja": {
+"name": "Ikeja",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.6,
+"lon": 3.35
+},
+"lagos": {
+"name": "Lagos",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.52,
+"lon": 3.38
+},
+"lafia": {
+"name": "Lafia",
+"state": "Nasarawa",
+"country": "NG",
+"lat": 8.49,
+"lon": 8.52
+},
+"nasarawa": {
+"name": "Lafia",
+"state": "Nasarawa",
+"country": "NG",
+"lat": 8.49,
+"lon": 8.52
+},
+"minna": {
+"name": "Minna",
+"state": "Niger",
+"country": "NG",
+"lat": 9.61,
+"lon": 6.56
+},
+"niger": {
+"name": "Minna",
+"state": "Niger",
+"country": "NG",
+"lat": 9.61,
+"lon": 6.56
+},
+"abeokuta": {
+"name": "Abeokuta",
+"state": "Ogun",
+"country": "NG",
+"lat": 7.15,
+"lon": 3.35
+},
+"ogun": {
+"name": "Abeokuta",
+"state": "Ogun",
+"country": "NG",
+"lat": 7.15,
+"lon": 3.35
+},
+"akure": {
+"name": "Akure",
+"state": "Ondo",
+"country": "NG",
+"lat": 7.25,
+"lon": 5.2
+},
+"ondo": {
+"name": "Akure",
+"state": "Ondo",
+"country": "NG",
+"lat": 7.25,
+"lon": 5.2
+},
+"osogbo": {
+"name": "Osogbo",
+"state": "Osun",
+"country": "NG",
+"lat": 7.77,
+"lon": 4.56
+},
+"osun": {
+"name": "Osogbo",
+"state": "Osun",
+"country": "NG",
+"lat": 7.77,
+"lon": 4.56
+},
+"ibadan": {
+"name": "Ibadan",
+"state": "Oyo",
+"country": "NG",
+"lat": 7.38,
+"lon": 3.95
+},
+"oyo": {
+"name": "Ibadan",
+"state": "Oyo",
+"country": "NG",
+"lat": 7.38,
+"lon": 3.95
+},
+"jos": {
+"name": "Jos",
+"state": "Plateau",
+"country": "NG",
+"lat": 9.9,
+"lon": 8.86
+},
+"plateau": {
+"name": "Jos",
+"state": "Plateau",
+"country": "NG",
+"lat": 9.9,
+"lon": 8.86
+},
+"port harcourt": {
+"name": "Port Harcourt",
+"state": "Rivers",
+"country": "NG",
+"lat": 4.82,
+"lon": 7.03
+},
+"rivers": {
+"name": "Port Harcourt",
+"state": "Rivers",
+"country": "NG",
+"lat": 4.82,
+"lon": 7.03
+},
+"sokoto": {
+"name": "Sokoto",
+"state": "Sokoto",
+"country": "NG",
+"lat": 13.06,
+"lon": 5.24
+},
+"jalingo": {
+"name": "Jalingo",
+"state": "Taraba",
+"country": "NG",
+"lat": 8.89,
+"lon": 11.36
+},
+"taraba": {
+"name": "Jalingo",
+"state": "Taraba",
+"country": "NG",
+"lat": 8.89,
+"lon": 11.36
+},
+"damaturu": {
+"name": "Damaturu",
+"state": "Yobe",
+"country": "NG",
+"lat": 11.75,
+"lon": 11.96
+},
+"yobe": {
+"name": "Damaturu",
+"state": "Yobe",
+"country": "NG",
+"lat": 11.75,
+"lon": 11.96
+},
+"gusau": {
+"name": "Gusau",
+"state": "Zamfara",
+"country": "NG",
+"lat": 12.16,
+"lon": 6.66
+},
+"zamfara": {
+"name": "Gusau",
+"state": "Zamfara",
+"country": "NG",
+"lat": 12.16,
+"lon": 6.66
+},
+"lekki": {
+"name": "Lekki",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.44,
+"lon": 3.47
+},
+"ikorodu": {
+"name": "Ikorodu",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.62,
+"lon": 3.51
+},
+"yaba": {
+"name": "Yaba",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.51,
+"lon": 3.38
+},
+"surulere": {
+"name": "Surulere",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.5,
+"lon": 3.35
+},
+"ajah": {
+"name": "Ajah",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.47,
+"lon": 3.57
+},
+"victoria island": {
+"name": "Victoria Island",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.43,
+"lon": 3.42
+},
+"festac": {
+"name": "Festac",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.47,
+"lon": 3.28
+},
+"badagry": {
+"name": "Badagry",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.42,
+"lon": 2.89
+},
+"epe": {
+"name": "Epe",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.58,
+"lon": 3.98
+},
+"ikoyi": {
+"name": "Ikoyi",
+"state": "Lagos",
+"country": "NG",
+"lat": 6.45,
+"lon": 3.43
+},
+"ota": {
+"name": "Ota",
+"state": "Ogun",
+"country": "NG",
+"lat": 6.68,
+"lon": 3.23
+},
+"sagamu": {
+"name": "Sagamu",
+"state": "Ogun",
+"country": "NG",
+"lat": 6.84,
+"lon": 3.65
+},
+"ogbomosho": {
+"name": "Ogbomosho",
+"state": "Oyo",
+"country": "NG",
+"lat": 8.13,
+"lon": 4.24
+},
+"warri": {
+"name": "Warri",
+"state": "Delta",
+"country": "NG",
+"lat": 5.52,
+"lon": 5.75
+},
+"onitsha": {
+"name": "Onitsha",
+"state": "Anambra",
+"country": "NG",
+"lat": 6.15,
+"lon": 6.79
+},
+"nnewi": {
+"name": "Nnewi",
+"state": "Anambra",
+"country": "NG",
+"lat": 6.02,
+"lon": 6.92
+},
+"aba": {
+"name": "Aba",
+"state": "Abia",
+"country": "NG",
+"lat": 5.11,
+"lon": 7.37
+},
+"nsukka": {
+"name": "Nsukka",
+"state": "Enugu",
+"country": "NG",
+"lat": 6.86,
+"lon": 7.4
+},
+"zaria": {
+"name": "Zaria",
+"state": "Kaduna",
+"country": "NG",
+"lat": 11.09,
+"lon": 7.71
+},
+"ile-ife": {
+"name": "Ile-Ife",
+"state": "Osun",
+"country": "NG",
+"lat": 7.48,
+"lon": 4.56
+},
+"ife": {
+"name": "Ile-Ife",
+"state": "Osun",
+"country": "NG",
+"lat": 7.48,
+"lon": 4.56
+},
+"benin": {
+"name": "Benin City",
+"state": "Edo",
+"country": "NG",
+"lat": 6.34,
+"lon": 5.63
+},
+"ph": {
+"name": "Port Harcourt",
+"state": "Rivers",
+"country": "NG",
+"lat": 4.82,
+"lon": 7.03
+},
+"gwarinpa": {
+"name": "Gwarinpa",
+"state": "FCT",
+"country": "NG",
+"lat": 9.11,
+"lon": 7.4
+},
+"wuse": {
+"name": "Wuse",
+"state": "FCT",
+"country": "NG",
+"lat": 9.07,
+"lon": 7.47
+},
+"garki": {
+"name": "Garki",
+"state": "FCT",
+"country": "NG",
+"lat": 9.04,
+"lon": 7.49
+},
+"maitama": {
+"name": "Maitama",
+"state": "FCT",
+"country": "NG",
+"lat": 9.09,
+"lon": 7.5
+},
+"lugbe": {
+"name": "Lugbe",
+"state": "FCT",
+"country": "NG",
+"lat": 8.98,
+"lon": 7.37
+},
+"kubwa": {
+"name": "Kubwa",
+"state": "FCT",
+"country": "NG",
+"lat": 9.15,
+"lon": 7.32
+},
+"accra": {
+"name": "Accra",
+"state": null,
+"country": "GH",
+"lat": 5.6,
+"lon": -0.19
+},
+"kumasi": {
+"name": "Kumasi",
+"state": null,
+"country": "GH",
+"lat": 6.69,
+"lon": -1.62
+},
+"nairobi": {
+"name": "Nairobi",
+"state": null,
+"country": "KE",
+"lat": -1.29,
+"lon": 36.82
+},
+"johannesburg": {
+"name": "Johannesburg",
+"state": null,
+"country": "ZA",
+"lat": -26.2,
+"lon": 28.05
+},
+"cape town": {
+"name": "Cape Town",
+"state": null,
+"country": "ZA",
+"lat": -33.92,
+"lon": 18.42
+},
+"abidjan": {
+"name": "Abidjan",
+"state": null,
+"country": "CI",
+"lat": 5.36,
+"lon": -4.01
+},
+"dakar": {
+"name": "Dakar",
+"state": null,
+"country": "SN",
+"lat": 14.72,
+"lon": -17.47
+},
+"cairo": {
+"name": "Cairo",
+"state": null,
+"country": "EG",
+"lat": 30.04,
+"lon": 31.24
+},
+"kigali": {
+"name": "Kigali",
+"state": null,
+"country": "RW",
+"lat": -1.95,
+"lon": 30.06
+},
+"cotonou": {
+"name": "Cotonou",
+"state": null,
+"country": "BJ",
+"lat": 6.37,
+"lon": 2.42
+},
+"lome": {
+"name": "Lomé",
+"state": null,
+"country": "TG",
+"lat": 6.13,
+"lon": 1.22
+}
+}

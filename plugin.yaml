@@ -3,9 +3,10 @@ version: "0.1.0"
 manifest_version: 2
 api_version: 1
 description: >-
-  Shopping agent for Hermes — browse product sections, search live prices with
-  photos (Google Shopping via SerpAPI), manage a cart, pay with Paystack in
-  local currencies or with crypto (NOWPayments), and track delivery.
+  Personal shopper agent for Hermes. Tell it what you want; it finds the product
+  (live Google Shopping prices and photos), shows price plus the delivery fee to
+  your location, and on your yes takes payment by Paystack (local currencies) or
+  crypto (NOWPayments) and tracks delivery.
 author: xleeking98
 license: MIT
 homepage: https://github.com/OWNER/shopmate
@@ -14,6 +15,7 @@ requires_hermes: ">=0.21.5"
 provides_tools:
   - shop_categories
   - shop_search
+  - set_location
   - shop_product
   - cart_add
   - cart_remove
@@ -41,6 +43,10 @@ config_schema:
     default: ""
     secret: true
     description: "NOWPayments API key for crypto checkout — USDT, USDC, BTC, ETH, SOL… (https://account.nowpayments.io)"
+  SHOPMATE_ORIGIN:
+    type: str
+    default: "lagos"
+    description: "City you dispatch orders from; delivery fees are calculated from here"
   SHOPMATE_COUNTRY:
     type: str
     default: "ng"
