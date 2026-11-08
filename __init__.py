@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from . import schemas, tools
+from . import providers, schemas, tools
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ TOOLS = [
 
 
 def register(ctx):
+    providers.bind(ctx)
     for name, schema, handler in TOOLS:
         ctx.register_tool(name=name, toolset="shopmate", schema=schema, handler=handler)
     skills_dir = Path(__file__).parent / "skills"

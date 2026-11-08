@@ -15,6 +15,25 @@ DEMO = {p["id"]: dict(p, price_source="demo (sample price, not live)") for p in 
 TIMEOUT = 20
 
 
+_CTX = [None]
+
+
+def bind(ctx):
+    _CTX[0] = ctx
+
+
+def setting(key: str, default=None):
+    """Non-secret settings live in config.yaml under plugins.entries.shopmate.settings.<key>."""
+    ctx = _CTX[0]
+    if ctx is None:
+        return default
+    try:
+        v = ctx.get_config(key, default)
+    except Exception:
+        return default
+    return default if v in (None, "") else v
+
+
 def get_secret(name: str):
     try:
         from agent.secret_scope import get_secret as _gs  # Hermes credential route

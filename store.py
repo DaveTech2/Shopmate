@@ -14,16 +14,11 @@ _PLUGIN_NAME = "shopmate"
 
 
 def _data_dir() -> Path:
-    try:  # Hermes-provided per-plugin data dir
-        from plugins.plugin_utils import plugin_data_dir  # type: ignore
-
-        try:
-            d = Path(plugin_data_dir(_PLUGIN_NAME))
-        except TypeError:
-            d = Path(plugin_data_dir())
-    except Exception:
-        home = os.environ.get("HERMES_HOME") or str(Path.home() / ".hermes")
-        d = Path(home) / "plugin-data" / _PLUGIN_NAME
+    try:  # Hermes' profile-aware data dir; survives plugin updates
+        from plugins.plugin_storage import plugin_data_dir  # type: ignore
+        d = Path(plugin_data_dir(_PLUGIN_NAME))
+    except ImportError:  # outside Hermes (offline tests)
+        d = Path(os.environ.get("SHOPMATE_TEST_DATA") or tempfile.gettempdir()) / _PLUGIN_NAME
     d.mkdir(parents=True, exist_ok=True)
     return d
 

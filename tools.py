@@ -73,17 +73,17 @@ def _base_currency(lines):
 
 
 def _home():
-    o = delivery.resolve(providers.get_secret("SHOPMATE_ORIGIN") or "lagos")
+    o = delivery.resolve(providers.setting("origin", "lagos"))
     return o or delivery.resolve("lagos")
 
 
 def _origin(loc=None):
-    """Where an order ships from. Customers in the store's home country are served from SHOPMATE_ORIGIN.
-    Customers abroad are served by local merchants in their own city (SHOPMATE_ABROAD=local, default),
-    or shipped internationally from the home dispatch point (SHOPMATE_ABROAD=ship)."""
+    """Where an order ships from. Customers in the store's home country are served from the `origin` setting.
+    Customers abroad are served by local merchants in their own city (`abroad: local`, default),
+    or shipped internationally from the home dispatch point (`abroad: ship`)."""
     home = _home()
     if loc and loc.get("country") and loc["country"] != home.get("country"):
-        if (providers.get_secret("SHOPMATE_ABROAD") or "local").lower() != "ship":
+        if str(providers.setting("abroad", "local")).lower() != "ship":
             return delivery.local_origin(loc)
     return home
 
@@ -91,7 +91,7 @@ def _origin(loc=None):
 def _search_country(loc):
     if loc and loc.get("country"):
         return loc["country"].lower()
-    return (providers.get_secret("SHOPMATE_COUNTRY") or "ng").lower()
+    return str(providers.setting("fallback_country", "ng")).lower()
 
 
 def _location(data, cid):
@@ -179,7 +179,7 @@ def shop_search(args, **kwargs):
         country = _search_country(loc0)
         try:
             results = providers.search_live(key, q, country, max_price, limit)
-            fallback = (providers.get_secret("SHOPMATE_COUNTRY") or "ng").lower()
+            fallback = str(providers.setting("fallback_country", "ng")).lower()
             if not results and country != fallback:  # Google Shopping isn't live in every country
                 results = providers.search_live(key, q, fallback, max_price, limit)
         except Exception as e:

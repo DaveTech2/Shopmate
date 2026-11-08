@@ -13,9 +13,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent))
-os.environ["HERMES_HOME"] = tempfile.mkdtemp()
+os.environ["SHOPMATE_TEST_DATA"] = tempfile.mkdtemp()
 
 SECRETS = {}
+SETTINGS = {}
 agent = types.ModuleType("agent"); ss = types.ModuleType("agent.secret_scope")
 ss.get_secret = lambda n: SECRETS.get(n)
 sys.modules["agent"], sys.modules["agent.secret_scope"] = agent, ss
@@ -85,6 +86,9 @@ class Ctx:
         assert schema["name"] == name
         self.tools[name] = handler
 
+    def get_config(self, key, default=None):
+        return SETTINGS.get(key, default)
+
     def register_skill(self, name, path):
         self.skills[name] = path
 
@@ -118,9 +122,9 @@ assert earbuds["size"] == "small" and earbuds["delivery_fee"] < near["results"][
 r = call(ctx, "shop_search", query="tecno phone"); assert r["results"] and "Tecno" in r["results"][0]["title"]
 r = call(ctx, "shop_product", product_id="d-pho1"); assert "delivery_express" in r["product"]
 r = call(ctx, "set_location", city="Accra", conv="gh"); assert r["zone"] == "same city" and r["local_currency"] == "GHS", r
-SECRETS["SHOPMATE_ABROAD"] = "ship"
+SETTINGS["abroad"] = "ship"
 r = call(ctx, "set_location", city="Accra", conv="gh"); assert r["zone"] == "international", r
-del SECRETS["SHOPMATE_ABROAD"]
+del SETTINGS["abroad"]
 # precise location from a shared pin / maps link
 r = call(ctx, "set_location", lat=6.4480, lon=3.4730, conv="pin")
 assert r["precise"] and r["location"].startswith("Lekki") and r["nearest_pickup_stops"][0]["id"] == "lk1", r

@@ -33,19 +33,24 @@ user confirmation, and never claiming an order is paid until the provider confir
 
 ## Configuration
 
-All keys are optional. With none set, Shopmate runs on its bundled **demo catalog (sample prices, clearly labelled)**
-and refuses to take payment.
+Everything is optional. With no keys, Shopmate runs on its bundled **demo catalog (sample prices, clearly
+labelled)** and refuses to take payment. All of it can also be set from the Desktop app's **Settings → Plugins**.
 
-| Secret | Enables |
+**Secrets** (`.env`, read only through Hermes' secret scope):
+
+| Variable | Enables |
 |---|---|
 | `SERPAPI_API_KEY` | Live Google Shopping results ([serpapi.com](https://serpapi.com)) |
 | `PAYSTACK_SECRET_KEY` | Paystack checkout links. Use `sk_test_…` while testing. Only currencies enabled on your Paystack business account will work. |
 | `NOWPAYMENTS_API_KEY` | Crypto checkout ([nowpayments.io](https://nowpayments.io)) |
-| `SHOPMATE_ORIGIN` | Dispatch city delivery is calculated from (default `lagos`) |
-| `SHOPMATE_ABROAD` | `local` (default) or `ship` — how customers outside your home country are served |
-| `SHOPMATE_COUNTRY` | Google Shopping country (default `ng`) |
 
-Secrets are read only through Hermes' secret scope (`agent.secret_scope.get_secret`).
+**Settings** (`config.yaml`, under `plugins.entries.shopmate.settings`):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `origin` | `lagos` | City or address you dispatch from; delivery is priced from here |
+| `abroad` | `local` | Customers outside your home country: `local` = merchants in their own city, `ship` = ship internationally |
+| `fallback_country` | `ng` | Google Shopping country used when the customer's country has no results |
 
 ## Business model — read this
 
@@ -56,10 +61,10 @@ merchants. ## Delivery fees
 Shown on **every product** once the customer's location is known — anywhere in the world. Places in the bundled
 list resolve instantly offline; any other city, town, landmark or full street address is looked up on
 OpenStreetMap (Nominatim). Live search follows the customer's country, so they see local merchants in their local
-currency (falling back to `SHOPMATE_COUNTRY` where Google Shopping isn't available).
+currency (falling back to `fallback_country` where Google Shopping isn't available).
 
-Customers in your home country ship from `SHOPMATE_ORIGIN`. Customers abroad are served by merchants in their own
-city (`SHOPMATE_ABROAD=local`, default), or set `SHOPMATE_ABROAD=ship` to ship internationally from your origin.
+Customers in your home country ship from `origin`. Customers abroad are served by merchants in their own
+city (`abroad: local`, default), or set `abroad: ship` to ship internationally from your origin.
 Nigerian dispatch uses naira rate tables; everywhere else uses USD tables converted to the local currency.
  Fee = distance band base + per-km charge (from
 your dispatch city, using built-in coordinates for all 36 Nigerian states + FCT, major cities/areas, and key African

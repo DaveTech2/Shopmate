@@ -9,7 +9,7 @@ description: >-
   crypto (NOWPayments) and tracks delivery.
 author: DaveTech2
 license: MIT
-homepage: https://github.com/DaveTech2/shopmate
+homepage: https://github.com/DaveTech2/Shopmate
 tags: [shopping, commerce, payments, paystack, crypto, africa]
 requires_hermes: ">=0.21.5"
 provides_tools:
@@ -26,33 +26,23 @@ provides_tools:
   - payment_options
   - checkout
   - order_status
-# Keys are optional: without them the plugin runs on its demo catalog and
-# refuses to take payment. They are read through Hermes' secret scope.
+# All settings are optional. Without the keys Shopmate runs on its labelled demo catalog and
+# refuses to take payment. Secrets live in .env and are read through agent.secret_scope;
+# the rest live in config.yaml under plugins.entries.shopmate.settings.
 config_schema:
-  SERPAPI_API_KEY:
-    type: str
-    default: ""
-    secret: true
-    description: "SerpAPI key for live Google Shopping prices and images (https://serpapi.com/manage-api-key)"
-  PAYSTACK_SECRET_KEY:
-    type: str
-    default: ""
-    secret: true
-    description: "Paystack secret key (sk_test_… or sk_live_…) for checkout links (https://dashboard.paystack.com/#/settings/developers)"
-  NOWPAYMENTS_API_KEY:
-    type: str
-    default: ""
-    secret: true
-    description: "NOWPayments API key for crypto checkout — USDT, USDC, BTC, ETH, SOL… (https://account.nowpayments.io)"
-  SHOPMATE_ORIGIN:
-    type: str
-    default: "lagos"
-    description: "City you dispatch orders from; delivery fees are calculated from here"
-  SHOPMATE_ABROAD:
-    type: str
-    default: "local"
-    description: "Customers outside your home country: 'local' = served by merchants in their own city, 'ship' = ship internationally from SHOPMATE_ORIGIN"
-  SHOPMATE_COUNTRY:
-    type: str
-    default: "ng"
-    description: "Fallback Google Shopping country (search otherwise follows the customer's country)"
+  serpapi_key: {type: secret, env: SERPAPI_API_KEY, label: "SerpAPI key", description: "Live Google Shopping prices and photos (https://serpapi.com/manage-api-key)"}
+  paystack_key: {type: secret, env: PAYSTACK_SECRET_KEY, label: "Paystack secret key", description: "sk_test_… or sk_live_… for checkout links (Paystack dashboard → Settings → API Keys)"}
+  nowpayments_key: {type: secret, env: NOWPAYMENTS_API_KEY, label: "NOWPayments API key", description: "Crypto checkout — USDT, USDC, BTC, ETH, SOL… (https://account.nowpayments.io)"}
+  origin: {type: str, default: "lagos", label: "Dispatch city", description: "City or address you ship from; delivery fees are calculated from here"}
+  abroad: {type: str, choices: [local, ship], default: local, label: "Customers abroad", description: "local = served by merchants in their own city; ship = ship internationally from your dispatch city"}
+  fallback_country: {type: str, default: "ng", label: "Fallback search country", description: "Google Shopping country used when the customer's country has no results"}
+optional_env:
+  - name: SERPAPI_API_KEY
+    description: "SerpAPI key for live prices and photos"
+    password: true
+  - name: PAYSTACK_SECRET_KEY
+    description: "Paystack secret key for local-currency checkout"
+    password: true
+  - name: NOWPAYMENTS_API_KEY
+    description: "NOWPayments API key for crypto checkout"
+    password: true
