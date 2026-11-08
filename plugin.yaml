@@ -1,5 +1,5 @@
 name: shopmate
-version: "0.2.3"
+version: "0.3.0"
 manifest_version: 2
 api_version: 1
 description: >-
@@ -35,6 +35,7 @@ config_schema:
   nowpayments_key: {type: secret, env: NOWPAYMENTS_API_KEY, label: "NOWPayments API key", description: "Crypto checkout — USDT, USDC, BTC, ETH, SOL… (https://account.nowpayments.io)"}
   origin: {type: str, default: "lagos", label: "Dispatch city", description: "City or address you ship from; delivery fees are calculated from here"}
   abroad: {type: str, choices: [local, ship], default: local, label: "Customers abroad", description: "local = served by merchants in their own city; ship = ship internationally from your dispatch city"}
+  auto_locate: {type: bool, default: true, label: "Detect location automatically", description: "Use the network's approximate location (city level, via ipapi.co) when the customer hasn't shared one. Turn off if other people message this Hermes from elsewhere."}
   fallback_country: {type: str, default: "ng", label: "Fallback search country", description: "Google Shopping country used when the customer's country has no results"}
 optional_env:
   - name: SERPAPI_API_KEY

@@ -98,6 +98,26 @@ def _location(data, cid):
     return data.get("locations", {}).get(cid)
 
 
+def _current_location(cid):
+    """Saved location, else the customer's current location detected from the network (if enabled)."""
+    loc = store.read(lambda d: _location(d, cid))
+    if loc or not providers.setting("auto_locate", True):
+        return loc
+    from . import geo
+    loc = geo.ip_locate()
+    if loc:
+        store.transact(lambda d: d.setdefault("locations", {}).__setitem__(cid, loc))
+    return loc
+
+
+def _where(loc):
+    if not loc:
+        return None
+    w = loc["name"] + (", " + loc["state"] if loc.get("state") and loc["state"] != loc["name"] else "")
+    return w + (" (detected from your network — share a pin or address for exact doorstep pricing)"
+                if loc.get("approximate") else "")
+
+
 def _ship(items, loc, speed="standard", currency="NGN"):
     """Delivery quote for [(product, qty)] to loc, in `currency`."""
     q = delivery.quote(_origin(loc), loc, items, speed)
@@ -175,7 +195,7 @@ def shop_search(args, **kwargs):
     key = providers.get_secret("SERPAPI_API_KEY")
     if key and query:
         q = query if not category else "%s %s" % (query, providers.category_name(category))
-        loc0 = store.read(lambda d: _location(d, _cid(kwargs)))
+        loc0 = _current_location(_cid(kwargs))
         country = _search_country(loc0)
         try:
             results = providers.search_live(key, q, country, max_price, limit)
@@ -197,15 +217,15 @@ def shop_search(args, **kwargs):
         results = providers.search_demo(query, category, max_price, limit)
         note = ("Demo catalog: sample prices, not live. Set SERPAPI_API_KEY for real prices and photos."
                 if not key else "Browsing a section from the demo catalog; give a search term for live prices.")
-    loc = store.read(lambda d: _location(d, _cid(kwargs)))
+    loc = _current_location(_cid(kwargs))
     _annotate(results, loc)
     out = dict(results=results, count=len(results), note=note)
     if results:
         out["best_match"] = results[0]["id"]
     if not loc:
-        out["ask_location"] = "Ask the customer for their city/area so every product shows its delivery fee (set_location)."
+        out["ask_location"] = "Couldn't detect a location; ask the customer for their area or a location pin (set_location)."
     else:
-        out["delivering_to"] = loc["name"] + (", " + loc["state"] if loc.get("state") else "")
+        out["delivering_to"] = _where(loc)
     return _ok(**out)
 
 
@@ -213,7 +233,8 @@ def shop_search(args, **kwargs):
 def shop_product(args, **kwargs):
     pid = args.get("product_id")
     cid = _cid(kwargs)
-    p, loc = store.read(lambda d: (_find_product(d, pid), _location(d, cid)))
+    p = store.read(lambda d: _find_product(d, pid))
+    loc = _current_location(cid)
     if not p:
         return _err("Product not found; search again to refresh results", product_id=pid)
     p = _annotate([dict(p)], loc)[0]
@@ -225,7 +246,11 @@ def shop_product(args, **kwargs):
 @safe
 def set_location(args, **kwargs):
     cid = _cid(kwargs)
-    loc = _resolve_input(args)
+    if not (args.get("city") or args.get("state") or args.get("lat") is not None or args.get("shared_location")):
+        from . import geo
+        loc = geo.ip_locate()  # "use where I am"
+    else:
+        loc = _resolve_input(args)
     if not loc:
         return _err("I couldn't place that location. Ask the customer to share their location pin / Google Maps link, "
                     "or name the nearest big city or the state.",
@@ -237,7 +262,7 @@ def set_location(args, **kwargs):
     local_cur = providers.currency_for(loc.get("country"))
     sample_fee = sample["fee"] if sample["fee_currency"] == local_cur else \
         round(sample["fee"] * providers.fx_rate(sample["fee_currency"], local_cur), 2)
-    return _ok(location=loc["name"] + (", " + loc["state"] if loc.get("state") else ""), country=loc["country"],
+    return _ok(location=_where(loc), country=loc["country"], approximate=bool(loc.get("approximate")),
                ships_from=o["name"], distance_km=sample["distance_km"], zone=sample["band"],
                typical_eta=sample["eta"], doorstep_small_item_fee=_money(sample_fee, local_cur), local_currency=local_cur,
                precise=bool(loc.get("precise")),
@@ -307,7 +332,8 @@ def cart_remove(args, **kwargs):
 @safe
 def cart_view(args, **kwargs):
     cid = _cid(kwargs)
-    (lines, subtotal), loc = store.read(lambda d: (_cart_summary(d, cid), _location(d, cid)))
+    lines, subtotal = store.read(lambda d: _cart_summary(d, cid))
+    loc = _current_location(cid)
     cur = _base_currency(lines)
     out = dict(cart=lines, items=sum(l["qty"] for l in lines), subtotal=subtotal, subtotal_display=_money(subtotal, cur))
     if lines and loc:
@@ -332,7 +358,8 @@ def delivery_quote(args, **kwargs):
     if speed not in ("standard", "express"):
         return _err("speed must be standard or express")
     cid = _cid(kwargs)
-    (lines, subtotal), loc = store.read(lambda d: (_cart_summary(d, cid), _location(d, cid)))
+    lines, subtotal = store.read(lambda d: _cart_summary(d, cid))
+    loc = _current_location(cid)
     if args.get("city") or args.get("lat") is not None or args.get("shared_location"):
         loc = _resolve_input(args) or loc
     if not loc:
@@ -361,7 +388,7 @@ def payment_options(args, **kwargs):
 @safe
 def checkout(args, **kwargs):
     cid = _cid(kwargs)
-    saved = store.read(lambda d: _location(d, cid))
+    saved = _current_location(cid)
     dmethod = (args.get("delivery_method") or "doorstep").lower()
     if dmethod not in ("doorstep", "pickup"):
         return _err("delivery_method must be doorstep or pickup")
@@ -375,7 +402,12 @@ def checkout(args, **kwargs):
         if not stop:
             return _err("No pickup stop near this location; use doorstep delivery.")
         args = dict(args, address=args.get("address") or "Pickup at " + stop["name"])
-    args = dict(args, city=args.get("city") or loc.get("area") or loc["name"])
+    args = dict(args, city=args.get("city") or loc.get("area") or loc.get("city") or loc["name"])
+    if dmethod == "doorstep" and args.get("address") and not loc.get("precise"):
+        from . import geo  # price to the exact street address, not just the city
+        exact = geo.search("%s, %s" % (args["address"], args["city"]), loc.get("country"))
+        if exact and delivery._km(loc, exact) <= 80:
+            loc = dict(exact, precise=True)
     required = ["full_name", "email", "phone", "address", "city"]
     missing = [k for k in required if not str(args.get(k) or "").strip()]
     if missing:

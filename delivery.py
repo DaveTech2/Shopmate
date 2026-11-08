@@ -37,7 +37,7 @@ ROAD_FACTOR = 1.3  # straight-line → road distance
 
 _BULKY = re.compile(r"\b(freezer|fridge|refrigerator|washing machine|generator|air ?conditioner|\bac\b|mattress|sofa|wardrobe|\d{2,3}\s*(kg)|chest)\b", re.I)
 _LARGE = re.compile(r"\b(tv|television|microwave|fan|cookware|dumbbell|inflator|engine oil|carton|bag of|\d+\s*l\b|5kg|10kg|laptop|monitor|printer)\b", re.I)
-_SMALL = re.compile(r"\b(earbuds?|phone holder|thermometer|charger|cable|lotion|soap|wipes|vitamin|watch|case)\b", re.I)
+_SMALL = re.compile(r"\b(earbuds?|airpods|phone holder|thermometer|charger|cable|lotion|cream|soap|wipes|vitamins?|tablets|capsules|supplement|paracetamol|watch|case|sneakers?|shoes?|trainers|sandals|slides|t-?shirt|shirt|jeans|dress|cap|hat|socks|perfume|lipstick|phone|iphone|smartphone|book)\b", re.I)
 _CAT_SIZE = {"groceries": "medium", "phones": "small", "electronics": "medium", "fashion": "small", "home-kitchen": "large",
              "beauty": "small", "baby": "medium", "health": "small", "sports": "medium", "automotive": "medium"}
 

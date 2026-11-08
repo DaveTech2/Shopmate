@@ -73,3 +73,27 @@ def reverse(lat: float, lon: float):
         res = _get("/reverse", {"lat": lat, "lon": lon, "zoom": 16})
         return _place(res) if res and "lat" in res else {}
     return _cached(key, fn)
+
+
+_IP = {}
+
+
+def ip_locate():
+    """Approximate current location (city level) of the machine Hermes runs on, from its public IP.
+
+    Uses ipapi.co (free, no key). Cached for an hour in memory; nothing is stored."""
+    hit = _IP.get("v")
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    try:
+        r = _http_json("https://ipapi.co/json/", headers={"User-Agent": UA})
+    except Exception:
+        return None
+    if r.get("error") or r.get("latitude") is None:
+        return None
+    loc = {"name": r.get("city") or r.get("region") or r.get("country_name"), "city": r.get("city"),
+           "state": r.get("region"), "country": (r.get("country_code") or "").upper() or None,
+           "country_name": r.get("country_name"), "lat": float(r["latitude"]), "lon": float(r["longitude"]),
+           "source": "network", "approximate": True}
+    _IP["v"] = (time.time(), loc)
+    return loc

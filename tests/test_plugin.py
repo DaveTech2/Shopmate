@@ -32,6 +32,12 @@ CALLS = []
 def fake_http(url, data=None, headers=None, method=None):
     CALLS.append(url)
     body = json.loads(data) if data else None
+    if "ipapi.co/json" in url:
+        return {"city": "Lekki", "region": "Lagos", "country_code": "NG", "country_name": "Nigeria",
+                "latitude": 6.4474, "longitude": 3.4723}
+    if "nominatim.openstreetmap.org/search" in url and "Admiralty" in url:
+        return [{"lat": "6.4310", "lon": "3.4680", "address": {"road": "Admiralty Way", "suburb": "Lekki Phase 1",
+                 "city": "Lagos", "state": "Lagos", "country": "Nigeria", "country_code": "ng"}}]
     if "nominatim.openstreetmap.org/search" in url:
         if "Brooklyn" in url:
             return [{"lat": "40.6782", "lon": "-73.9442", "address": {"suburb": "Brooklyn", "city": "New York",
@@ -123,8 +129,17 @@ assert "shopping" in ctx.skills and ":" not in "shopping"
 
 # --- demo mode (no keys)
 r = call(ctx, "shop_categories"); assert len(r["categories"]) == 10 and r["live_search"] is False
+SETTINGS["auto_locate"] = False
 r = call(ctx, "shop_search", category="phones"); assert r["count"] == 5 and "Demo" in r["note"]
 assert "ask_location" in r and "set your location" in r["results"][0]["delivery_display"]
+del SETTINGS["auto_locate"]
+# "I want to buy a Tecno Spark 30" — no location given: detected from the network, fees shown immediately
+r = call(ctx, "shop_search", query="tecno spark 30", conv="auto")
+assert "Lekki" in r["delivering_to"] and "detected" in r["delivering_to"] and r["results"][0]["total_delivered"], r
+call(ctx, "cart_add", product_id=r["results"][0]["id"], conv="auto")
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080", address="12 Admiralty Way", conv="auto")
+assert r["status"] == "needs_confirmation" and "Admiralty" in r["summary"]["deliver_to"], r
+r = call(ctx, "set_location", conv="here"); assert r["approximate"] and "Lekki" in r["location"], r
 r = call(ctx, "set_location", city="Atlantis"); assert "error" in r
 r = call(ctx, "set_location", city="Lekki Phase 1"); assert r["location"] == "Lekki, Lagos", r
 near = call(ctx, "shop_search", query="rice")

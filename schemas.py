@@ -32,7 +32,8 @@ SHOP_SEARCH = {
 SET_LOCATION = {
     "name": "set_location",
     "description": (
-        "Locate the customer for delivery. Call this as soon as the customer mentions where they are (e.g. 'I'm in London') — don't ask again. Best: their shared location pin or Google Maps link (exact doorstep "
+        "Locate the customer for delivery. Call with NO arguments to use the customer's current location "
+        "(detected automatically from the network, city-level). Call this as soon as the customer mentions where they are (e.g. 'I'm in London') — don't ask again. Best: their shared location pin or Google Maps link (exact doorstep "
         "coordinates) via lat/lon or shared_location; otherwise a city/area name. Do this early: once set, every "
         "product shows the doorstep delivery fee, the nearest pickup stop and the total price. Returns the nearest pickup stops."
     ),

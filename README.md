@@ -50,6 +50,7 @@ labelled)** and refuses to take payment. All of it can also be set from the Desk
 |---|---|---|
 | `origin` | `lagos` | City or address you dispatch from; delivery is priced from here |
 | `abroad` | `local` | Customers outside your home country: `local` = merchants in their own city, `ship` = ship internationally |
+| `auto_locate` | `true` | Detect the customer's city from the network when they haven't shared a location. Turn off if other people message this Hermes from elsewhere |
 | `fallback_country` | `ng` | Google Shopping country used when the customer's country has no results |
 
 ## Business model — read this
@@ -78,15 +79,17 @@ coordinates. Shopmate also finds the closest pickup stops and offers collection 
 (`PICKUP_DISCOUNT`). The bundled stops in `data/pickup_stops.json` are **samples** — put your real stops in
 `pickup_stops.json` in the plugin's data directory (same format) and they replace the samples.
 
-Location is never detected silently: the plugin has no access to the customer's device. It works from what the
-customer shares in chat. Coordinates near a bundled place are named offline; elsewhere they are named via OpenStreetMap.
+**Current location.** When the customer hasn't said where they are, Shopmate detects the city from the network the
+Hermes machine is on (ipapi.co, city level) and tells the customer so; a shared pin, maps link or street address
+replaces it with an exact doorstep price. The plugin has no access to the customer's device GPS. Coordinates near a bundled place are named offline; elsewhere they are named via OpenStreetMap.
 With a live Paystack key, Shopmate refuses to charge for demo-catalog items.
 
 ## Disclosures (catalog rule 13)
 
 - **Third-party network calls**: `serpapi.com` (search, only when the key is set), `api.paystack.co` (create and verify
   payments), `api.nowpayments.io` (create and check crypto payments), `open.er-api.com` (exchange rates, no key; only
-  when converting currencies), `nominatim.openstreetmap.org` (place lookup, only for places not in the bundled list;
+  when converting currencies), `ipapi.co` (approximate current location from the network, only when no location
+  was shared and `auto_locate` is on), `nominatim.openstreetmap.org` (place lookup, only for places not in the bundled list;
   max 1 request/second, identifying User-Agent, results cached).
 - **Data sent**: the place name/address or coordinates to OpenStreetMap; the search query and country to SerpAPI; customer email, amount, currency, order id, item count and city to
   Paystack; amount in USD, coin, order id and a short description to NOWPayments.
