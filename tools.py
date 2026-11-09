@@ -123,6 +123,7 @@ def _ship(items, loc, speed="standard", currency="NGN"):
     q = delivery.quote(_origin(loc), loc, items, speed)
     if q["fee_currency"] != currency:
         q["fee"] = round(q["fee"] * providers.fx_rate(q["fee_currency"], currency), 2)
+        q["fee_currency"] = currency
     q["fee_display"] = _money(q["fee"], currency)
     q["to"] = loc["name"] + (", " + loc["state"] if loc.get("state") else "")
     return q
@@ -139,6 +140,7 @@ def _pickup(stop, items, speed="standard", currency="NGN"):
     q = delivery.pickup_quote(_origin(dict(stop, country=stop.get("country", "NG"))), stop, items, speed)
     if q["fee_currency"] != currency:
         q["fee"] = round(q["fee"] * providers.fx_rate(q["fee_currency"], currency), 2)
+        q["fee_currency"] = currency
     q["fee_display"] = _money(q["fee"], currency)
     q["to"] = "Pickup: " + stop["name"]
     return q
@@ -222,6 +224,36 @@ def shop_search(args, **kwargs):
     out = dict(results=results, count=len(results), note=note)
     if results:
         out["best_match"] = results[0]["id"]
+        # Several brands of the same product type → ask which one before cart_add.
+        types = {}
+        for r in results:
+            pt = (r.get("product_type") or "").strip().lower()
+            if not pt:
+                continue
+            types.setdefault(pt, []).append(r)
+        multi = {pt: items for pt, items in types.items() if len({(i.get("brand") or i["title"]).lower() for i in items}) >= 2}
+        if multi or (query and len(results) >= 2 and not category):
+            options = []
+            seen = set()
+            for r in results:
+                key = (r.get("brand") or r["title"]).lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                options.append({
+                    "id": r["id"], "title": r["title"], "brand": r.get("brand"),
+                    "size": r.get("size"), "product_type": r.get("product_type"),
+                    "price": r["price"], "price_display": r.get("price_display") or _money(r["price"], r.get("currency") or "NGN"),
+                    "currency": r.get("currency") or "NGN", "image": r.get("image"),
+                    "total_delivered": r.get("total_delivered"),
+                })
+            if len(options) >= 2:
+                out["ask_which"] = True
+                out["brand_options"] = options
+                out["clarify"] = (
+                    "Several options match — show each with its photo, price and size, then ask which brand "
+                    "(and size/variant) the customer wants BEFORE calling cart_add."
+                )
     if not loc:
         out["ask_location"] = "Couldn't detect a location; ask the customer for their area or a location pin (set_location)."
     else:
@@ -494,7 +526,8 @@ def checkout(args, **kwargs):
     rate = providers.fx_rate(base, pay_cur)
     charge = round(total * rate, 2)
 
-    summary = dict(items=[{"title": l["title"], "qty": l["qty"], "line_total": _money(l["line_total"], base)} for l in lines],
+    summary = dict(items=[{"title": l["title"], "qty": l["qty"], "line_total": _money(l["line_total"], base),
+                           "image": l.get("image"), "id": l.get("id")} for l in lines],
                    subtotal=_money(subtotal, base), delivery_fee=_money(fee, base), delivery_eta=eta,
                    total=_money(total, base), deliver_to=("%s — %s" % (args["full_name"], q["to"])) if stop else "%s, %s, %s" % (args["full_name"], args["address"], q["to"]),
                    delivery_method=dmethod, delivery_distance_km=q["distance_km"],
@@ -536,64 +569,260 @@ def checkout(args, **kwargs):
                    to_address=pay.get("pay_address"), memo_or_tag=pay.get("payin_extra_id"),
                    warning="Send on the correct network for %s only; crypto payments can't be reversed." % coin)
 
-    def save(data):
-        data["orders"][order_id] = order
-        data["carts"].pop(cid, None)
-    store.transact(save)
+    store.save_order(order)
+    store.transact(lambda d: d["carts"].pop(cid, None))
     return _ok(status="awaiting_payment", order_id=order_id, amount=_money(charge, pay_cur), delivery_eta=eta,
+               items=[{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in lines],
                note="Order is not paid until order_status confirms it with the payment provider.", **out)
 
 
 _CRYPTO_DONE = {"finished", "confirmed"}
 _CRYPTO_FAIL = {"failed", "expired", "refunded"}
+_REFUNDABLE = {"paid", "processing", "shipped"}  # not delivered / already refunded
+_DELIVERED_BLOCK = {"delivered", "completed"}
+_REFUND_WINDOW_SECS = 14 * 24 * 3600  # 14 days from paid_at / created_at
+
+FAQ = [
+    {"q": "How long does delivery take?",
+     "a": "Standard delivery is usually within 1–3 days in the same city, longer for other cities. Express is about 1.8× the fee and roughly a day faster. The exact ETA is on every product and on your order."},
+    {"q": "What payment methods do you accept?",
+     "a": "Paystack (cards and local methods in NGN, GHS, KES, ZAR, USD, XOF, EGP, RWF — whichever the store enabled) and crypto via NOWPayments (USDT, USDC, BTC, ETH, SOL, BNB, TRX, LTC)."},
+    {"q": "What is the refund policy?",
+     "a": "Paid orders that are not yet delivered can be refunded within 14 days. Call request_refund with the order id and a reason; confirm=true after the customer agrees. Paystack refunds go back to the original payment method; crypto refunds are paid out manually to an address you provide."},
+    {"q": "Where is my order?",
+     "a": "Use order_status with your order id, or the email/phone used at checkout, to see payment and delivery status instantly."},
+    {"q": "An item arrived damaged or wrong.",
+     "a": "Open a support ticket with contact_support (issue_type damaged or wrong_item) and your order id. The store will follow up using the operator contact shown."},
+]
+
+
+def _order_brief(o):
+    return {
+        "order_id": o["order_id"],
+        "amount": _money(o.get("charge", o.get("total", 0)), o.get("pay_currency", "NGN")),
+        "payment_status": o.get("payment_status"),
+        "delivery_status": o.get("delivery_status"),
+        "created_at": o.get("created_at"),
+        "items": [{"title": l.get("title"), "qty": l.get("qty"), "image": l.get("image")} for l in o.get("items") or []],
+    }
+
+
+def _refresh_payment(order):
+    """Hit the payment provider. Returns updated order (may be unchanged)."""
+    if order.get("payment_status") in ("paid", "refunded", "refund_pending"):
+        return order
+    method = order.get("payment_method", "paystack")
+    key = providers.get_secret("PAYSTACK_SECRET_KEY" if method == "paystack" else "NOWPAYMENTS_API_KEY")
+    if not key:
+        return order
+    new = None
+    oid = order["order_id"]
+    if method == "paystack":
+        tx = payments.paystack_verify(key, oid)
+        st = tx.get("status")
+        if st == "success" and int(tx.get("amount") or 0) == int(round(order["charge"] * 100)) \
+                and (tx.get("currency") or "").upper() == order["pay_currency"]:
+            new = "paid"
+        elif st in ("failed", "abandoned", "reversed"):
+            new = st
+    else:
+        st = payments.crypto_status(key, order["crypto_payment_id"]).get("payment_status")
+        new = "paid" if st in _CRYPTO_DONE else (st if st in _CRYPTO_FAIL else ("confirming" if st else None))
+    if not new:
+        return order
+
+    def mut(o):
+        o["payment_status"] = new
+        if new == "paid":
+            o["delivery_status"] = "processing"
+            o["paid_at"] = int(time.time())
+        return o
+    return store.update_order(oid, mut) or order
 
 
 @safe
 def order_status(args, **kwargs):
+    """Fast indexed lookup by order id, email, phone, or this conversation's recent orders.
+
+    Skips the payment-provider API unless refresh=true (or a single pending order is fetched by id).
+    """
     oid = (args.get("order_id") or "").strip()
+    email = (args.get("email") or "").strip()
+    phone = (args.get("phone") or "").strip()
+    refresh = args.get("refresh") is True
+    limit = args.get("limit") or 10
     cid = _cid(kwargs)
+
+    if oid:
+        orders = store.find_orders(order_id=oid)
+    elif email:
+        orders = store.find_orders(email=email, limit=limit)
+    elif phone:
+        orders = store.find_orders(phone=phone, limit=limit)
+    else:
+        orders = store.find_orders(conversation_id=cid, limit=limit)
+
+    if oid and not orders:
+        return _err("Order not found", order_id=oid)
+
+    # Refresh payment only when asked, or when fetching one pending order by id.
+    if orders and (refresh or (oid and len(orders) == 1 and orders[0].get("payment_status") not in ("paid", "refunded", "refund_pending"))):
+        orders = [_refresh_payment(o) for o in orders]
+
+    if oid and len(orders) == 1:
+        order = orders[0]
+        res = dict(order_id=oid, payment_status=order["payment_status"], delivery_status=order["delivery_status"],
+                   amount=_money(order.get("charge", order["total"]), order.get("pay_currency", "NGN")),
+                   eta=order.get("eta"),
+                   items=[{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in order.get("items") or []])
+        if order["payment_status"] not in ("paid", "refunded", "refund_pending"):
+            if order.get("payment_url"):
+                res["pay_here"] = order["payment_url"]
+            if order.get("pay_address"):
+                res["send_exactly"] = "%s %s" % (order["pay_amount"], str(order["pay_coin"]).upper())
+                res["to_address"] = order["pay_address"]
+        if order.get("refund"):
+            res["refund"] = order["refund"]
+        return _ok(**res)
+
+    return _ok(orders=[_order_brief(o) for o in orders], count=len(orders),
+               note="Indexed lookup (no payment-provider call). Pass refresh=true to re-check payment.")
+
+
+@safe
+def request_refund(args, **kwargs):
+    """Two-step refund: preview without confirm, execute with confirm=true."""
+    oid = (args.get("order_id") or "").strip()
+    reason = (args.get("reason") or "").strip()
     if not oid:
-        orders = store.read(lambda d: [
-            {"order_id": o["order_id"], "amount": _money(o.get("charge", o["total"]), o.get("pay_currency", "NGN")),
-             "payment_status": o["payment_status"], "delivery_status": o["delivery_status"]}
-            for o in d["orders"].values() if o.get("conversation_id") == cid])
-        return _ok(orders=orders)
-    order = store.read(lambda d: d["orders"].get(oid))
+        return _err("order_id is required")
+    if not reason:
+        return _err("reason is required")
+    order = store.get_order(oid)
     if not order:
         return _err("Order not found", order_id=oid)
 
-    if order["payment_status"] not in ("paid",):
-        method = order.get("payment_method", "paystack")
-        key = providers.get_secret("PAYSTACK_SECRET_KEY" if method == "paystack" else "NOWPAYMENTS_API_KEY")
-        new = None
-        if key and method == "paystack":
-            tx = payments.paystack_verify(key, oid)
-            st = tx.get("status")
-            if st == "success" and int(tx.get("amount") or 0) == int(round(order["charge"] * 100)) \
-                    and (tx.get("currency") or "").upper() == order["pay_currency"]:
-                new = "paid"
-            elif st in ("failed", "abandoned", "reversed"):
-                new = st
-        elif key and method == "crypto":
-            st = payments.crypto_status(key, order["crypto_payment_id"]).get("payment_status")
-            new = "paid" if st in _CRYPTO_DONE else (st if st in _CRYPTO_FAIL else ("confirming" if st else None))
-        if new:
-            def upd(data):
-                o = data["orders"][oid]
-                o["payment_status"] = new
-                if new == "paid":
-                    o["delivery_status"] = "processing"
-                    o["paid_at"] = int(time.time())
-                return o
-            order = store.transact(upd)
+    pay_st = order.get("payment_status")
+    del_st = order.get("delivery_status")
+    if pay_st in ("refunded", "refund_pending"):
+        return _err("This order already has a refund in progress or completed.", order_id=oid,
+                    payment_status=pay_st, refund=order.get("refund"))
+    if pay_st != "paid":
+        return _err("Only paid orders can be refunded.", payment_status=pay_st)
+    if del_st in _DELIVERED_BLOCK:
+        return _err("Order is already delivered; open a support ticket instead of an automatic refund.",
+                    delivery_status=del_st)
+    paid_at = int(order.get("paid_at") or order.get("created_at") or 0)
+    if paid_at and (time.time() - paid_at) > _REFUND_WINDOW_SECS:
+        return _err("Refund window (14 days) has passed; open a support ticket.", order_id=oid)
 
-    res = dict(order_id=oid, payment_status=order["payment_status"], delivery_status=order["delivery_status"],
-               amount=_money(order.get("charge", order["total"]), order.get("pay_currency", "NGN")), eta=order["eta"],
-               items=[{"title": l["title"], "qty": l["qty"]} for l in order["items"]])
-    if order["payment_status"] != "paid":
-        if order.get("payment_url"):
-            res["pay_here"] = order["payment_url"]
-        if order.get("pay_address"):
-            res["send_exactly"] = "%s %s" % (order["pay_amount"], str(order["pay_coin"]).upper())
-            res["to_address"] = order["pay_address"]
-    return _ok(**res)
+    method = order.get("payment_method", "paystack")
+    amount = order.get("charge", order.get("total"))
+    cur = order.get("pay_currency", "NGN")
+    summary = {
+        "order_id": oid,
+        "amount": _money(amount, cur),
+        "method": method,
+        "reason": reason,
+        "items": [{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in order.get("items") or []],
+    }
+    if method == "crypto":
+        payout = (args.get("payout_address") or "").strip()
+        if not payout:
+            return _err("Crypto refunds need payout_address (the wallet to receive the refund).", summary=summary)
+        summary["payout_address"] = payout
+        summary["crypto_coin"] = order.get("pay_coin") or order.get("crypto_coin")
+
+    if args.get("confirm") is not True:
+        return _ok(status="needs_confirmation", summary=summary,
+                   instruction="Show this refund summary and call request_refund again with confirm=true only after the customer agrees.")
+
+    if method == "paystack":
+        key = providers.get_secret("PAYSTACK_SECRET_KEY")
+        if not key:
+            return _err("Paystack refunds are not configured. No refund was submitted.", summary=summary)
+        pay = payments.paystack_refund(key, oid, amount=amount, currency=cur, reason=reason)
+        def mut(o):
+            o["payment_status"] = "refunded"
+            o["delivery_status"] = "cancelled"
+            o["refund"] = {"status": "refunded", "reason": reason, "at": int(time.time()),
+                           "provider": "paystack", "provider_ref": (pay or {}).get("id") or (pay or {}).get("transaction") or oid}
+            return o
+        order = store.update_order(oid, mut)
+        return _ok(status="refunded", order_id=oid, amount=_money(amount, cur),
+                   note="Paystack refund submitted. Funds return to the original payment method.")
+    else:
+        # Crypto: never auto-send; record a manual refund request for the operator.
+        payout = (args.get("payout_address") or "").strip()
+        def mut(o):
+            o["payment_status"] = "refund_pending"
+            o["refund"] = {"status": "refund_pending", "reason": reason, "at": int(time.time()),
+                           "provider": "crypto_manual", "payout_address": payout,
+                           "amount": amount, "currency": cur, "coin": o.get("pay_coin")}
+            return o
+        order = store.update_order(oid, mut)
+        return _ok(status="refund_pending", order_id=oid, amount=_money(amount, cur),
+                   payout_address=payout,
+                   note="Crypto refund recorded for manual payout. The store operator will send funds to the address provided. Not auto-sent.")
+
+
+@safe
+def contact_support(args, **kwargs):
+    """FAQ helper, open a support ticket, or look up ticket status."""
+    action = (args.get("action") or "faq").strip().lower()
+    cid = _cid(kwargs)
+
+    support_email = providers.get_secret("SUPPORT_EMAIL") or providers.setting("support_email")
+    support_wa = providers.get_secret("SUPPORT_WHATSAPP") or providers.setting("support_whatsapp")
+    contact = {k: v for k, v in {"email": support_email, "whatsapp": support_wa}.items() if v}
+
+    if action in ("faq", "help"):
+        topic = (args.get("topic") or args.get("question") or "").strip().lower()
+        faqs = FAQ
+        if topic:
+            faqs = [f for f in FAQ if topic in f["q"].lower() or topic in f["a"].lower()] or FAQ
+        return _ok(faqs=faqs, operator_contact=contact or None,
+                   note="Share the matching FAQ answer. For anything else, open a ticket with action=open.")
+
+    if action in ("status", "list"):
+        tid = (args.get("ticket_id") or "").strip()
+        oid = (args.get("order_id") or "").strip()
+        email = (args.get("email") or "").strip()
+        tickets = store.find_tickets(ticket_id=tid or None, order_id=oid or None,
+                                     email=email or None, conversation_id=None if (tid or oid or email) else cid)
+        return _ok(tickets=[{k: t.get(k) for k in ("ticket_id", "order_id", "issue_type", "status", "created_at", "subject")}
+                            for t in tickets], count=len(tickets), operator_contact=contact or None)
+
+    if action != "open":
+        return _err("action must be faq, open, status or list")
+
+    issue = (args.get("issue_type") or "other").strip().lower()
+    valid = {"missing", "damaged", "late", "wrong_item", "payment", "other", "refund"}
+    if issue not in valid:
+        return _err("issue_type must be one of: " + ", ".join(sorted(valid)))
+    message = (args.get("message") or args.get("reason") or "").strip()
+    if not message:
+        return _err("message is required when opening a ticket")
+    oid = (args.get("order_id") or "").strip()
+    if oid and not store.get_order(oid):
+        return _err("Order not found", order_id=oid)
+
+    ticket_id = "TK-" + time.strftime("%y%m%d") + "-" + uuid.uuid4().hex[:6].upper()
+    ticket = {
+        "ticket_id": ticket_id,
+        "order_id": oid,
+        "conversation_id": cid,
+        "issue_type": issue,
+        "status": "open",
+        "subject": (args.get("subject") or issue.replace("_", " ")).strip()[:120],
+        "message": message[:2000],
+        "email": (args.get("email") or "").strip(),
+        "phone": (args.get("phone") or "").strip(),
+        "created_at": int(time.time()),
+    }
+    store.save_ticket(ticket)
+    return _ok(status="open", ticket_id=ticket_id, order_id=oid or None, issue_type=issue,
+               operator_contact=contact or None,
+               note="Ticket created. Tell the customer the ticket id"
+                    + ((" and that they can reach the store at " + ", ".join("%s: %s" % (k, v) for k, v in contact.items()))
+                       if contact else " — the store operator will follow up in this chat."))

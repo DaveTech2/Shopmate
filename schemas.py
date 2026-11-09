@@ -1,6 +1,6 @@
 """Tool schemas — what the model reads."""
 
-_PID = {"type": "string", "description": "Product id from shop_search results (e.g. 'd-pho1' or 'g-…')"}
+_PID = {"type": "string", "description": "Product id from shop_search results (e.g. 'd-toi1' or 'g-…')"}
 
 SHOP_CATEGORIES = {
     "name": "shop_categories",
@@ -15,13 +15,15 @@ SHOP_SEARCH = {
         "merchants from Google Shopping; otherwise returns the demo catalog (sample prices — say so). "
         "Follow the shopping playbook: skill_view('shopmate:shopping'). "
         "Show each result with its image as markdown ![title](image), price and merchant. "
+        "When ask_which/brand_options is set, present several brands with photos and ASK which one "
+        "(and size/variant) before cart_add. "
         "Every result carries delivery_display and total_delivered for the customer's saved location — always show "
         "them. best_match is the top pick to present for confirmation. To browse a section, pass category with an empty query."
     ),
     "parameters": {
         "type": "object",
         "properties": {
-            "query": {"type": "string", "description": "What the user wants, e.g. 'Tecno Spark 30' or 'rice 25kg'"},
+            "query": {"type": "string", "description": "What the user wants, e.g. 'toothpaste' or 'Tecno Spark 30'"},
             "category": {"type": "string", "description": "Optional section id from shop_categories"},
             "max_price": {"type": "number", "description": "Optional budget ceiling in the product currency"},
             "limit": {"type": "integer", "description": "Max results (1-20, default 8)"},
@@ -61,7 +63,7 @@ PICKUP_STOPS = {
 
 SHOP_PRODUCT = {
     "name": "shop_product",
-    "description": "Get full details for one product id from search results.",
+    "description": "Get full details for one product id from search results (includes the exact product image URL).",
     "parameters": {"type": "object", "properties": {"product_id": _PID}, "required": ["product_id"]},
 }
 
@@ -69,7 +71,8 @@ CART_ADD = {
     "name": "cart_add",
     "description": (
         "Add products to the customer's cart — one (product_id + quantity) or many at once via items, for bulk "
-        "orders (up to 1000 of each). Only add what the customer chose. Returns the cart with delivery fee and total."
+        "orders (up to 1000 of each). Only add AFTER the customer chose a specific brand/item when several options "
+        "were shown. Returns the cart with images, delivery fee and total."
     ),
     "parameters": {"type": "object", "properties": {
         "product_id": _PID,
@@ -96,7 +99,7 @@ CART_REMOVE = {
 
 CART_VIEW = {
     "name": "cart_view",
-    "description": "Show the cart with line totals and subtotal.",
+    "description": "Show the cart with line totals, product images and subtotal.",
     "parameters": {"type": "object", "properties": {}},
 }
 
@@ -130,9 +133,9 @@ PAYMENT_OPTIONS = {
 CHECKOUT = {
     "name": "checkout",
     "description": (
-        "Place an order for the cart. First call WITHOUT confirm to get a summary, show it to the user, and only "
-        "call again with confirm=true after they explicitly agree. Returns a Paystack payment link, or a crypto "
-        "deposit address and exact amount. Never tell the user an order is paid until order_status says paid."
+        "Place an order for the cart. First call WITHOUT confirm to get a summary (with product images), show it "
+        "to the user, and only call again with confirm=true after they explicitly agree. Returns a Paystack payment "
+        "link, or a crypto deposit address and exact amount. Never tell the user an order is paid until order_status says paid."
     ),
     "parameters": {"type": "object", "properties": {
         "full_name": {"type": "string"},
@@ -153,6 +156,52 @@ CHECKOUT = {
 
 ORDER_STATUS = {
     "name": "order_status",
-    "description": "Check payment and delivery status of an order (verifies with the payment provider). Omit order_id to list this conversation's orders.",
-    "parameters": {"type": "object", "properties": {"order_id": {"type": "string"}}},
+    "description": (
+        "Look up orders instantly by order_id, customer email, phone, or (with no args) this conversation's recent "
+        "orders. Uses an indexed store — fast even with thousands of orders. Does NOT call the payment provider "
+        "unless refresh=true (or you fetch one pending order by id). Always show each item's image."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "order_id": {"type": "string"},
+        "email": {"type": "string", "description": "Find orders for this customer email"},
+        "phone": {"type": "string", "description": "Find orders for this customer phone"},
+        "refresh": {"type": "boolean", "description": "true to re-check payment with Paystack/NOWPayments"},
+        "limit": {"type": "integer", "description": "Max orders to return (default 10)"},
+    }},
+}
+
+REQUEST_REFUND = {
+    "name": "request_refund",
+    "description": (
+        "Request a refund for a paid order that is not yet delivered (14-day window). First call WITHOUT confirm to "
+        "preview, then confirm=true after the customer agrees. Paystack refunds via the Refund API; crypto refunds "
+        "are recorded for manual payout to payout_address (never auto-sent). Never double-refund."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "order_id": {"type": "string"},
+        "reason": {"type": "string", "description": "Why the customer wants a refund"},
+        "payout_address": {"type": "string", "description": "Required for crypto: wallet address to receive the refund"},
+        "confirm": {"type": "boolean", "description": "true only after the customer approved the refund summary"},
+    }, "required": ["order_id", "reason"]},
+}
+
+CONTACT_SUPPORT = {
+    "name": "contact_support",
+    "description": (
+        "Built-in support: action=faq for short answers (delivery, payments, refunds), action=open to create a "
+        "ticket tied to an order (missing/damaged/late/wrong_item/payment/other), action=status to check a ticket. "
+        "Shows SUPPORT_EMAIL / SUPPORT_WHATSAPP when configured."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "action": {"type": "string", "enum": ["faq", "open", "status", "list"], "description": "Default faq"},
+        "topic": {"type": "string", "description": "FAQ topic filter, e.g. 'refund' or 'delivery'"},
+        "question": {"type": "string", "description": "Optional free-text FAQ query"},
+        "order_id": {"type": "string"},
+        "ticket_id": {"type": "string"},
+        "issue_type": {"type": "string", "enum": ["missing", "damaged", "late", "wrong_item", "payment", "other", "refund"]},
+        "subject": {"type": "string"},
+        "message": {"type": "string", "description": "Ticket body when action=open"},
+        "email": {"type": "string"},
+        "phone": {"type": "string"},
+    }},
 }

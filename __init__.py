@@ -22,6 +22,8 @@ TOOLS = [
     ("payment_options", schemas.PAYMENT_OPTIONS, tools.payment_options),
     ("checkout", schemas.CHECKOUT, tools.checkout),
     ("order_status", schemas.ORDER_STATUS, tools.order_status),
+    ("request_refund", schemas.REQUEST_REFUND, tools.request_refund),
+    ("contact_support", schemas.CONTACT_SUPPORT, tools.contact_support),
 ]
 
 

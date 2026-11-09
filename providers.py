@@ -58,23 +58,45 @@ def _token_in(hay: str, w: str) -> bool:
     return bool(re.search(r"(?<![a-z0-9])%ss?(?![a-z0-9])" % re.escape(w.rstrip("s")), hay))
 
 
+# Query-token aliases so "toilet paper" hits "Toilet Roll", "soap" hits "Beauty Bar", etc.
+TOKEN_ALIASES = {
+    "paper": {"paper", "roll", "tissue"},
+    "roll": {"roll", "paper", "tissue"},
+    "tissue": {"tissue", "paper", "roll"},
+    "soap": {"soap", "bar"},
+    "bar": {"bar", "soap"},
+}
+
+
+def _token_match(hay: str, w: str) -> bool:
+    opts = TOKEN_ALIASES.get(w.rstrip("s"), {w, w.rstrip("s")})
+    return any(_token_in(hay, o) or _token_in(hay, o.rstrip("s")) for o in opts)
+
+
 def search_demo(query: str, category: str = None, max_price: float = None, limit: int = 10):
     """Offline catalog search. Non-numeric tokens are required; bare numbers alone cannot match."""
     raw = (query or "").lower().replace("promax", "pro max").replace("-", " ")
     words = [w for w in re.findall(r"[a-z0-9]+", raw) if len(w) > 1]
     alpha = [w for w in words if not w.isdigit()]
     nums = [w for w in words if w.isdigit()]
+    want_pet = any(w in ("pet", "dog", "cat", "animal") for w in alpha)
     scored = []
     for p in DEMO.values():
         if category and p["category"] != category:
             continue
         if max_price and p["price"] > max_price:
             continue
+        # Bare "shampoo" should not surface pet shampoo ahead of people's shampoo.
+        if p.get("category") == "pets" and not want_pet and "pet" not in alpha:
+            if any(w in ("shampoo", "wash", "soap") for w in alpha):
+                continue
         title = p["title"].lower()
-        hay = title + " " + p["category"] + " " + category_name(p["category"]).lower()
-        # Every non-numeric token must appear (title/brand/model); numbers only boost ranking.
+        brand = (p.get("brand") or "").lower()
+        ptype = (p.get("product_type") or "").lower()
+        hay = " ".join([title, brand, ptype, p["category"], category_name(p["category"]).lower(),
+                        " ".join(p.get("keywords") or [])])
         if alpha:
-            if not all(_token_in(hay, w) or _token_in(hay, w.rstrip("s")) for w in alpha):
+            if not all(_token_match(hay, w) for w in alpha):
                 continue
         elif nums:
             if not all(_token_in(hay, w) for w in nums):
@@ -83,16 +105,18 @@ def search_demo(query: str, category: str = None, max_price: float = None, limit
             continue
         score = 0
         for w in alpha:
-            stem = w.rstrip("s")
-            if _token_in(title, w) or _token_in(title, stem):
+            if _token_match(title, w) or _token_match(brand, w) or _token_match(ptype, w):
                 score += 3
-            elif _token_in(hay, w) or _token_in(hay, stem):
+            elif _token_match(hay, w):
                 score += 1
         for w in nums:
             if _token_in(title, w):
                 score += 2
             elif _token_in(hay, w):
                 score += 1
+        # Prefer human toiletries over pet care when both somehow match.
+        if p.get("category") == "pets" and not want_pet:
+            score -= 5
         if words and score < 1:
             continue
         scored.append((-score, p["price"], p))
@@ -148,10 +172,13 @@ def _shopping(api_key, query, country):
         if price is None:
             continue
         link = r.get("product_link") or r.get("link") or ""
+        image = r.get("thumbnail") or r.get("serpapi_thumbnail")
+        if not image:
+            continue  # never show a listing without the exact product photo
         out.append({
             "id": _pid(r.get("product_id") or (r.get("title", "") + link)), "title": r.get("title"),
             "price": price, "price_display": r.get("price"), "currency": currency_for(country),
-            "image": r.get("thumbnail") or r.get("serpapi_thumbnail"), "merchant": r.get("source"),
+            "image": image, "merchant": r.get("source"),
             "link": link, "rating": r.get("rating"), "reviews": r.get("reviews"),
             "price_source": "live (Google Shopping)",
         })
@@ -172,8 +199,11 @@ def _web(api_key, query, country):
         if not price:
             continue
         link = r.get("link") or r.get("product_link") or ""
+        image = r.get("thumbnail")
+        if not image:
+            continue
         out.append({"id": _pid(r.get("title", "") + link + str(price)), "title": r.get("title"), "price": price,
-                    "price_display": r.get("price"), "currency": cur, "image": r.get("thumbnail"),
+                    "price_display": r.get("price"), "currency": cur, "image": image,
                     "merchant": r.get("source"), "link": link, "price_source": "live (Google product listing)"})
     shops = TRUSTED_SHOPS.get(country, [])
     for r in data.get("organic_results", []) or []:
@@ -185,9 +215,12 @@ def _web(api_key, query, country):
             or _price_in(r.get("title", ""), cur) or _price_in(r.get("snippet", ""), cur)
         if not price:
             continue
+        image = r.get("thumbnail")
+        if not image:
+            continue
         out.append({
             "id": _pid(link), "title": r.get("title"), "price": float(price), "currency": cur,
-            "image": r.get("thumbnail"), "merchant": r.get("source") or domain, "link": link,
+            "image": image, "merchant": r.get("source") or domain, "link": link,
             "trusted_shop": any(domain.endswith(d) for d in shops),
             "price_source": "live (price from %s listing — confirm on the shop page)" % domain,
         })

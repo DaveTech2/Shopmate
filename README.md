@@ -4,103 +4,99 @@ Save the time and stress of shopping. Just tell the agent what you want:
 
 Works in **every country and city** — prices, merchants, delivery fees and payment in the customer's local currency.
 
-1. **You say it** — "I need a Tecno Spark 30, under ₦200k, delivered to Lekki." (or "AirPods to Brooklyn", "a kettle to Westminster")
-2. **It finds it** — live listings with real prices and photos.
-3. **It shows you** the product, price, **delivery fee to your location** and the total delivered price, and asks
-   "is this the one?"
+1. **You say it** — "I need toothpaste" or "AirPods to Brooklyn".
+2. **It shows brand options** — real photos, prices and delivery for several brands (e.g. Close-Up, Colgate, Sensodyne), and asks which one you want.
+3. **You pick** — it adds that exact item to the cart (with the real product image).
 4. **You say yes** — it takes payment (Paystack in your local currency, or crypto).
-5. **It's delivered** to your address, and the agent tracks the order.
+5. **It's delivered** to your address, and the agent tracks the order. Refunds and support tickets are built in.
 
 ```
 hermes plugins install shopmate
 hermes plugins enable shopmate
 ```
 
+Or from Git: `hermes plugins install DaveTech2/Shopmate --enable`
+
 ## What it does
 
 | Step | Tools |
 |---|---|
-| Locate the customer from a shared location pin, Google/Apple Maps link, or area name; every product then shows its doorstep fee and nearest-pickup option | `set_location`, `pickup_stops` |
-| Browse 24 sections — groceries, drinks, toiletries, household & cleaning, pharmacy (OTC), health, beauty, baby, phones, electronics, computers, gaming, fashion, shoes & sneakers, watches & bags, kids & toys, home & kitchen, furniture, office, books, pets, sports, tools & garden, automotive — or just ask for anything | `shop_categories`, `shop_search` |
-| Live product search — real prices, images, merchant names (Google Shopping) | `shop_search`, `shop_product` |
-| Cart and bulk orders — add many products at once, up to 1,000 of each, with bulk delivery pricing | `cart_add`, `cart_update`, `cart_remove`, `cart_view`, `cart_clear` |
-| Delivery fee + ETA by distance and item size, standard or express | `delivery_quote` |
-| Pay: Paystack (NGN, GHS, KES, ZAR, USD, XOF, EGP, RWF) or crypto (USDT, USDC, BTC, ETH, SOL, BNB, TRX, LTC) | `payment_options`, `checkout` |
-| Verify payment and track the order | `order_status` |
+| Locate the customer from a shared location pin, Google/Apple Maps link, or area name | `set_location`, `pickup_stops` |
+| Browse 24 sections — or ask for anything; several brand options with **real product photos** before cart | `shop_categories`, `shop_search`, `shop_product` |
+| Cart and bulk orders — images kept on every line | `cart_add`, `cart_update`, `cart_remove`, `cart_view`, `cart_clear` |
+| Delivery fee + ETA by distance and item size | `delivery_quote` |
+| Pay: Paystack or crypto (USDT, USDC, BTC, ETH, SOL, …) | `payment_options`, `checkout` |
+| Instant order lookup by id / email / phone / this chat (indexed SQLite) | `order_status` |
+| Refunds (Paystack API or manual crypto payout) | `request_refund` |
+| FAQ + support tickets | `contact_support` |
 
-A bundled skill (`shopmate:shopping`) tells the agent how to run the flow: two-step checkout with explicit
-user confirmation, and never claiming an order is paid until the provider confirms it.
+A bundled skill (`shopmate:shopping`) tells the agent how to run the flow: ask which brand when several match, always show the exact product image, two-step checkout/refund with explicit confirmation, and never claim paid until the provider confirms.
 
 ## Configuration
 
-Everything is optional. With no keys, Shopmate runs on its bundled **demo catalog (sample prices, clearly
-labelled)** and refuses to take payment. All of it can also be set from the Desktop app's **Settings → Plugins**.
+Everything is optional. With no keys, Shopmate runs on its bundled **demo catalog (sample prices, real packshot photos)** and refuses to take payment. All of it can also be set from the Desktop app's **Settings → Plugins**.
 
 **Secrets** (`.env`, read only through Hermes' secret scope):
 
 | Variable | Enables |
 |---|---|
 | `SERPAPI_API_KEY` | Live Google Shopping results ([serpapi.com](https://serpapi.com)) |
-| `PAYSTACK_SECRET_KEY` | Paystack checkout links. Use `sk_test_…` while testing. Only currencies enabled on your Paystack business account will work. |
+| `PAYSTACK_SECRET_KEY` | Paystack checkout + refunds. Use `sk_test_…` while testing. |
 | `NOWPAYMENTS_API_KEY` | Crypto checkout ([nowpayments.io](https://nowpayments.io)) |
+| `SUPPORT_EMAIL` | Optional operator email shown on support tickets |
+| `SUPPORT_WHATSAPP` | Optional operator WhatsApp shown on support tickets |
 
 **Settings** (`config.yaml`, under `plugins.entries.shopmate.settings`):
 
 | Key | Default | Meaning |
 |---|---|---|
-| `origin` | `lagos` | City or address you dispatch from; delivery is priced from here |
-| `abroad` | `local` | Customers outside your home country: `local` = merchants in their own city, `ship` = ship internationally |
-| `auto_locate` | `true` | Detect the customer's city from the network when they haven't shared a location. Turn off if other people message this Hermes from elsewhere |
-| `fallback_country` | `ng` | Google Shopping country used when the customer's country has no results |
+| `origin` | `lagos` | City or address you dispatch from |
+| `abroad` | `local` | Customers abroad: `local` = local merchants, `ship` = ship from origin |
+| `auto_locate` | `true` | Detect city from the network when no location shared |
+| `fallback_country` | `ng` | Google Shopping country when the customer's country has no results |
+| `support_email` / `support_whatsapp` | _(empty)_ | Shown on tickets when secrets are unset |
 
 ## Business model — read this
 
-Shopmate is a **concierge store**: the customer pays *you* (the store operator) through Paystack or NOWPayments, and you
-buy and deliver the items. Live search shows real third-party listings and prices; it does not place orders at those
-merchants.
+Shopmate is a **concierge store**: the customer pays *you* (the store operator) through Paystack or NOWPayments, and you buy and deliver the items. Live search shows real third-party listings and prices; it does not place orders at those merchants.
 
-## Delivery fees
+## Product images
 
-Shown on **every product** once the customer's location is known — anywhere in the world. Places in the bundled
-list resolve instantly offline; any other city, town, landmark or full street address is looked up on
-OpenStreetMap (Nominatim). Live search follows the customer's country, so they see local merchants in their local
-currency. Where Google Shopping has no results (Nigeria, for example), Shopmate reads prices from shop
-listings in regular Google results (Jumia, Konga, Slot, Jiji and other known local shops first), and labels each
-price with the shop it came from.
+Every product the customer sees — search, cart, checkout summary and order history — carries the **exact product photo** for that listing:
 
-Customers in your home country ship from `origin`. Customers abroad are served by merchants in their own
-city (`abroad: local`, default), or set `abroad: ship` to ship internationally from your origin.
-Nigerian dispatch uses naira rate tables; everywhere else uses USD tables converted to the local currency.
- Fee = distance band base + per-km charge (from
-your dispatch city, using built-in coordinates for all 36 Nigerian states + FCT, major cities/areas, and key African
-cities) + a size surcharge (small / medium / large / bulky, inferred from the product). Express = 1.8× and a day faster.
-Edit `RATES` and `SIZE_SURCHARGE` in `delivery.py` to match your logistics partner.
+- Live Google Shopping / SerpAPI results pass through the listing thumbnail; listings without a photo are dropped.
+- The demo catalog only includes SKUs with a verified real packshot URL (Open Beauty/Food Facts or Wikimedia). Placeholders are not used.
 
-**Doorstep or pickup.** When the customer shares a location pin or maps link, the fee is priced to their exact
-coordinates. Shopmate also finds the closest pickup stops and offers collection there at 60% of the doorstep fee
-(`PICKUP_DISCOUNT`). The bundled stops in `data/pickup_stops.json` are **samples** — put your real stops in
-`pickup_stops.json` in the plugin's data directory (same format) and they replace the samples.
+## Fast order lookup
 
-**Current location.** Prefer a shared location pin, Google/Apple Maps link (including short `maps.app.goo.gl`
-links), or an area/city name. When the customer hasn't said where they are, Shopmate may fall back to the city of
-the **Hermes host** network (ipapi.co, city level) — not the customer's phone GPS — and tells them so; a shared pin,
-maps link or street address replaces it with an exact doorstep price. Coordinates near a bundled place are named offline; elsewhere they are named via OpenStreetMap.
-With a live Paystack key, Shopmate refuses to charge for demo-catalog items.
+Orders and support tickets are stored in `orders.sqlite` under the plugin data directory, indexed by order id, email, phone and conversation. `order_status` answers in milliseconds even with thousands of orders, and skips the payment-provider API unless you pass `refresh=true`.
+
+## Refunds & support
+
+- `request_refund`: paid + not delivered + within 14 days. Preview without `confirm`, then `confirm=true`. Paystack → `POST /refund`. Crypto → `refund_pending` with the customer's `payout_address` (manual; never auto-sent). Double-refunds are refused.
+- `contact_support`: FAQ (delivery, payments, refund policy), open a ticket (`missing` / `damaged` / `late` / `wrong_item` / `payment` / `other`), or check ticket status.
 
 ## Disclosures (catalog rule 13)
 
-- **Third-party network calls**: `serpapi.com` (search, only when the key is set), `api.paystack.co` (create and verify
-  payments), `api.nowpayments.io` (create and check crypto payments), `open.er-api.com` (exchange rates, no key; only
-  when converting currencies), `ipapi.co` (approximate current location from the network, only when no location
-  was shared and `auto_locate` is on), `nominatim.openstreetmap.org` (place lookup, only for places not in the bundled list;
-  max 1 request/second, identifying User-Agent, results cached).
-- **Data sent**: the place name/address or coordinates to OpenStreetMap; the search query and country to SerpAPI; customer email, amount, currency, order id, item count and city to
-  Paystack; amount in USD, coin, order id and a short description to NOWPayments.
-- **Local storage**: carts, saved delivery locations (coordinates if shared), orders (including customer name, email,
-  phone and address) and cached search results live
-  in `state.json` in the plugin's data directory — never in the plugin tree.
+- **Third-party network calls**: `serpapi.com`, `api.paystack.co` (including refunds), `api.nowpayments.io`, `open.er-api.com`, `ipapi.co`, `nominatim.openstreetmap.org`.
+- **Data sent**: place name/coords to OpenStreetMap; search query to SerpAPI; customer email/amount/order id to Paystack; amount/coin/order id to NOWPayments.
+- **Local storage**: carts and locations in `state.json`; orders and tickets in `orders.sqlite` — never in the plugin tree.
 - **No** shell commands, background processes, reads outside the plugin's data, stored credentials or telemetry.
-- Payments need explicit user confirmation (`checkout` refuses to create a payment without `confirm=true`).
+- Payments and refunds need explicit user confirmation (`confirm=true`).
+
+## Changelog
+
+### 0.4.2
+
+- Indexed SQLite order/ticket store for instant lookup by id, email, phone or conversation
+- Real verified product images on every demo SKU; live results require a thumbnail
+- Brand options: toothpaste / body wash and similar queries return several brands and ask which one before cart
+- `request_refund` (Paystack refund API + manual crypto payout) and `contact_support` (FAQ + tickets)
+- Fixes: `fee_currency` after FX; demo search synonyms (soap/bar, paper/roll); body-wash SKUs; pet-shampoo ranking
+
+### 0.4.1
+
+- Pro Max demo SKU, tighter search, safer checkout, maps short-links
 
 ## Development
 

@@ -5,6 +5,7 @@
   hosted page; card data never touches the plugin.
 - NOWPayments: crypto (USDT, USDC, BTC, ETH, SOL, …). The customer sends the
   exact amount to a one-time deposit address; status is checked via the API.
+- Refunds: Paystack POST /refund; crypto is recorded as a manual payout request.
 """
 
 import json
@@ -23,7 +24,6 @@ PAYSTACK_CHANNELS = {
     "ZAR": ["card", "eft"],
     "XOF": ["card", "mobile_money"],
 }
-# Friendly names → NOWPayments ticker codes
 CRYPTO_COINS = {
     "usdt": "usdttrc20", "usdt-trc20": "usdttrc20", "usdt-bsc": "usdtbsc", "usdt-erc20": "usdterc20",
     "usdc": "usdcsol", "usdc-sol": "usdcsol", "usdc-base": "usdcbase", "usdc-erc20": "usdc",
@@ -39,12 +39,10 @@ def _call(url, key_headers, body=None, method=None):
         raise RuntimeError("HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")[:300]))
 
 
-# ---------- Paystack ----------
-
 def paystack_initialize(key, email, amount, currency, reference, metadata):
     body = {
         "email": email,
-        "amount": int(round(amount * 100)),  # subunit (kobo, pesewas, cents)
+        "amount": int(round(amount * 100)),
         "currency": currency,
         "reference": reference,
         "metadata": metadata,
@@ -62,7 +60,21 @@ def paystack_verify(key, reference):
     return data.get("data") or {}
 
 
-# ---------- NOWPayments (crypto) ----------
+def paystack_refund(key, reference, amount=None, currency=None, reason=None):
+    """Refund a Paystack charge by transaction reference (order id). Amount in major units."""
+    body = {"transaction": reference}
+    if amount is not None:
+        body["amount"] = int(round(float(amount) * 100))
+    if currency:
+        body["currency"] = currency
+    if reason:
+        body["customer_note"] = str(reason)[:500]
+        body["merchant_note"] = str(reason)[:500]
+    data = _call(PAYSTACK + "/refund", {"Authorization": "Bearer " + key}, body, "POST")
+    if not data.get("status"):
+        raise RuntimeError(data.get("message") or "Paystack refund failed")
+    return data.get("data") or data
+
 
 def crypto_create(key, amount_usd, coin, order_id, description):
     data = _call(NOWPAYMENTS + "/payment", {"x-api-key": key}, {
@@ -74,7 +86,7 @@ def crypto_create(key, amount_usd, coin, order_id, description):
     }, "POST")
     if not data.get("payment_id"):
         raise RuntimeError(data.get("message") or "NOWPayments create failed")
-    return data  # payment_id, pay_address, pay_amount, pay_currency, payin_extra_id, payment_status
+    return data
 
 
 def crypto_status(key, payment_id):
