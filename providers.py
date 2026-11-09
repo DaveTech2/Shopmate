@@ -53,17 +53,47 @@ def _http_json(url: str, data: bytes = None, headers: dict = None, method: str =
         return json.loads(r.read().decode("utf-8"))
 
 
+def _token_in(hay: str, w: str) -> bool:
+    """Whole-token match so '15' does not hit '150L' or '15.6-inch'. Allows a trailing 's'."""
+    return bool(re.search(r"(?<![a-z0-9])%ss?(?![a-z0-9])" % re.escape(w.rstrip("s")), hay))
+
+
 def search_demo(query: str, category: str = None, max_price: float = None, limit: int = 10):
-    words = [w for w in (query or "").lower().split() if len(w) > 1]
+    """Offline catalog search. Non-numeric tokens are required; bare numbers alone cannot match."""
+    raw = (query or "").lower().replace("promax", "pro max").replace("-", " ")
+    words = [w for w in re.findall(r"[a-z0-9]+", raw) if len(w) > 1]
+    alpha = [w for w in words if not w.isdigit()]
+    nums = [w for w in words if w.isdigit()]
     scored = []
     for p in DEMO.values():
         if category and p["category"] != category:
             continue
         if max_price and p["price"] > max_price:
             continue
-        hay = (p["title"] + " " + p["category"] + " " + category_name(p["category"])).lower()
-        score = sum(1 for w in words if w in hay or w.rstrip("s") in hay)
-        if words and score < max(1, (len(words) + 1) // 2):
+        title = p["title"].lower()
+        hay = title + " " + p["category"] + " " + category_name(p["category"]).lower()
+        # Every non-numeric token must appear (title/brand/model); numbers only boost ranking.
+        if alpha:
+            if not all(_token_in(hay, w) or _token_in(hay, w.rstrip("s")) for w in alpha):
+                continue
+        elif nums:
+            if not all(_token_in(hay, w) for w in nums):
+                continue
+        elif words:
+            continue
+        score = 0
+        for w in alpha:
+            stem = w.rstrip("s")
+            if _token_in(title, w) or _token_in(title, stem):
+                score += 3
+            elif _token_in(hay, w) or _token_in(hay, stem):
+                score += 1
+        for w in nums:
+            if _token_in(title, w):
+                score += 2
+            elif _token_in(hay, w):
+                score += 1
+        if words and score < 1:
             continue
         scored.append((-score, p["price"], p))
     scored.sort(key=lambda t: (t[0], t[1]))

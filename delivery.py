@@ -9,6 +9,8 @@ converted to the customer's currency for display. Edit the tables to match your 
 import json
 import math
 import re
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 PLACES = json.loads((Path(__file__).parent / "data" / "locations.json").read_text("utf-8"))
@@ -135,11 +137,34 @@ PICKUP_DISCOUNT = 0.6   # pickup costs 60% of doorstep to the same area
 _COORD = re.compile(r"(-?\d{1,2}\.\d{2,})\s*[, ]\s*(-?\d{1,3}\.\d{2,})")
 
 
+_SHORT_MAPS = re.compile(r"https?://(?:maps\.app\.goo\.gl|goo\.gl/maps)/\S+", re.I)
+
+
+def expand_maps_url(text: str, timeout: float = 5.0) -> str:
+    """Follow short Google Maps redirects (maps.app.goo.gl / goo.gl/maps) so coords can be parsed."""
+    if not text:
+        return text
+    m = _SHORT_MAPS.search(str(text))
+    if not m:
+        return text
+    url = m.group(0).rstrip(").,;'\"")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "shopmate-hermes-plugin/0.4.1 (+https://github.com/DaveTech2/Shopmate)"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            final = r.geturl()
+        return str(text).replace(url, final)
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, OSError):
+        return text
+
+
 def parse_coords(text: str):
-    """Pull lat,lon out of a shared location: '6.4474, 3.4723', Google/Apple Maps links (@lat,lon / q=lat,lon / ll=)."""
+    """Pull lat,lon out of a shared location: '6.4474, 3.4723', Google/Apple Maps links (@lat,lon / q=lat,lon / ll=).
+
+    Short maps.app.goo.gl / goo.gl/maps links are expanded via redirect first.
+    """
     if not text:
         return None
-    t = str(text).replace("%2C", ",")
+    t = expand_maps_url(str(text)).replace("%2C", ",")
     for pat in (r"@(-?\d+\.\d+),(-?\d+\.\d+)", r"[?&](?:q|query|ll|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)",
                 r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)"):
         m = re.search(pat, t)

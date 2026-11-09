@@ -12,7 +12,7 @@ from . import store
 from .providers import _http_json
 
 NOMINATIM = "https://nominatim.openstreetmap.org"
-UA = "shopmate-hermes-plugin/0.2 (+https://github.com/DaveTech2/shopmate)"
+UA = "shopmate-hermes-plugin/0.4.1 (+https://github.com/DaveTech2/Shopmate)"
 _LOCK = threading.Lock()
 _LAST = [0.0]
 
@@ -63,6 +63,39 @@ def search(text: str, country: str = None):
         res = _get("/search", params)
         return _place(res[0]) if res else {}
     return _cached(key, fn)
+
+
+def search_address(address: str, city: str = None, country: str = None):
+    """Try several query shapes for a street address before giving up.
+
+    Tries the full address, without countrycodes, and with qualifiers like
+    'Phase 1' trimmed — Nominatim is picky about Nigerian street forms.
+    """
+    import re
+    address = (address or "").strip()
+    city = (city or "").strip()
+    if not address:
+        return None
+    trimmed = re.sub(r"\bphase\s*\d+\b", "", address, flags=re.I)
+    trimmed = re.sub(r"\s{2,}", " ", trimmed).strip(" ,")
+    candidates = []
+    for addr in (address, trimmed):
+        if not addr or addr in candidates:
+            continue
+        candidates.append(addr)
+        if city and city.lower() not in addr.lower():
+            candidates.append("%s, %s" % (addr, city))
+    seen = set()
+    for q in candidates:
+        for ccode in (country, None):
+            key = (q.lower(), (ccode or "").lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            hit = search(q, ccode)
+            if hit:
+                return hit
+    return None
 
 
 def reverse(lat: float, lon: float):

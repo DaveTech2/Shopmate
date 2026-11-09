@@ -57,7 +57,9 @@ labelled)** and refuses to take payment. All of it can also be set from the Desk
 
 Shopmate is a **concierge store**: the customer pays *you* (the store operator) through Paystack or NOWPayments, and you
 buy and deliver the items. Live search shows real third-party listings and prices; it does not place orders at those
-merchants. ## Delivery fees
+merchants.
+
+## Delivery fees
 
 Shown on **every product** once the customer's location is known — anywhere in the world. Places in the bundled
 list resolve instantly offline; any other city, town, landmark or full street address is looked up on
@@ -79,9 +81,10 @@ coordinates. Shopmate also finds the closest pickup stops and offers collection 
 (`PICKUP_DISCOUNT`). The bundled stops in `data/pickup_stops.json` are **samples** — put your real stops in
 `pickup_stops.json` in the plugin's data directory (same format) and they replace the samples.
 
-**Current location.** When the customer hasn't said where they are, Shopmate detects the city from the network the
-Hermes machine is on (ipapi.co, city level) and tells the customer so; a shared pin, maps link or street address
-replaces it with an exact doorstep price. The plugin has no access to the customer's device GPS. Coordinates near a bundled place are named offline; elsewhere they are named via OpenStreetMap.
+**Current location.** Prefer a shared location pin, Google/Apple Maps link (including short `maps.app.goo.gl`
+links), or an area/city name. When the customer hasn't said where they are, Shopmate may fall back to the city of
+the **Hermes host** network (ipapi.co, city level) — not the customer's phone GPS — and tells them so; a shared pin,
+maps link or street address replaces it with an exact doorstep price. Coordinates near a bundled place are named offline; elsewhere they are named via OpenStreetMap.
 With a live Paystack key, Shopmate refuses to charge for demo-catalog items.
 
 ## Disclosures (catalog rule 13)

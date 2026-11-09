@@ -207,6 +207,15 @@
    "merchant": "Demo catalog"
   },
   {
+   "id": "d-pho6",
+   "title": "Apple iPhone 15 Pro Max 256GB",
+   "category": "phones",
+   "price": 1850000,
+   "currency": "NGN",
+   "image": "https://placehold.co/400x400/1a0433/ffffff/png?text=Apple%20iPhone%2015%20Pro%20Max%20256GB",
+   "merchant": "Demo catalog"
+  },
+  {
    "id": "d-pho5",
    "title": "itel A70 64GB",
    "category": "phones",

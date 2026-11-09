@@ -35,6 +35,12 @@ def fake_http(url, data=None, headers=None, method=None):
     if "ipapi.co/json" in url:
         return {"city": "Lekki", "region": "Lagos", "country_code": "NG", "country_name": "Nigeria",
                 "latitude": 6.4474, "longitude": 3.4723}
+    if "nominatim.openstreetmap.org/search" in url and "Ozumba" in url:
+        # Simulates Nominatim only answering when countrycodes is omitted
+        if "countrycodes" in url:
+            return []
+        return [{"lat": "6.4350", "lon": "3.4200", "address": {"road": "Ozumba Mbadiwe", "suburb": "Victoria Island",
+                 "city": "Lagos", "state": "Lagos", "country": "Nigeria", "country_code": "ng"}}]
     if "nominatim.openstreetmap.org/search" in url and "Admiralty" in url:
         return [{"lat": "6.4310", "lon": "3.4680", "address": {"road": "Admiralty Way", "suburb": "Lekki Phase 1",
                  "city": "Lagos", "state": "Lagos", "country": "Nigeria", "country_code": "ng"}}]
@@ -99,6 +105,24 @@ def fake_http(url, data=None, headers=None, method=None):
 providers._http_json = fake_http
 importlib.import_module(ROOT.name + ".payments")._http_json = fake_http
 
+import urllib.request
+class _MapsRedirect:
+    def __init__(self, url): self._url = url
+    def geturl(self): return self._url
+    def read(self): return b""
+    def __enter__(self): return self
+    def __exit__(self, *a): pass
+
+def _fake_urlopen(req, timeout=None):
+    url = req.full_url if isinstance(req, urllib.request.Request) else req
+    if "maps.app.goo.gl" in str(url) or "goo.gl/maps" in str(url):
+        CALLS.append(("maps_redirect", str(url)))
+        return _MapsRedirect("https://www.google.com/maps/place/Lekki/@6.4474,3.4723,15z")
+    raise AssertionError("unexpected urlopen " + str(url))
+
+urllib.request.urlopen = _fake_urlopen
+importlib.import_module(ROOT.name + ".geo").time.sleep = lambda s: None
+
 
 class Ctx:
     def __init__(self):
@@ -130,7 +154,7 @@ assert "shopping" in ctx.skills and ":" not in "shopping"
 # --- demo mode (no keys)
 r = call(ctx, "shop_categories"); assert len(r["categories"]) == 24 and r["live_search"] is False
 SETTINGS["auto_locate"] = False
-r = call(ctx, "shop_search", category="phones"); assert r["count"] == 5 and "Demo" in r["note"]
+r = call(ctx, "shop_search", category="phones"); assert r["count"] == 6 and "Demo" in r["note"]
 assert "ask_location" in r and "set your location" in r["results"][0]["delivery_display"]
 del SETTINGS["auto_locate"]
 # "I want to buy a Tecno Spark 30" — no location given: detected from the network, fees shown immediately
@@ -253,6 +277,48 @@ SECRETS["PAYSTACK_SECRET_KEY"] = "sk_live_x"
 call(ctx, "cart_add", product_id="d-pho1")
 r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080", address="1 Rd", city="Lagos", confirm=True)
 assert "demo" in r["error"]
+
+# --- demo search: Pro Max ranks first; bare '15' does not pull backpack/freezer/laptop
+SECRETS.clear()  # force demo catalog (live key was set earlier in the suite)
+r = call(ctx, "shop_search", query="iPhone 15 Pro Max", conv="pm")
+assert r["results"] and "Pro Max" in r["results"][0]["title"], r
+titles = [x["title"] for x in r["results"]]
+assert all("iPhone" in t for t in titles), titles
+assert not any(any(bad in t for bad in ("Backpack", "Freezer", "Laptop")) for t in titles), titles
+r = call(ctx, "shop_search", query="iPhone 15", conv="pm15")
+titles = [x["title"] for x in r["results"]]
+assert any("iPhone 15" in t for t in titles) and not any(any(bad in t for bad in ("Backpack", "Freezer", "Laptop")) for t in titles), titles
+
+# --- confirm must be boolean True (string 'false' / 'true' stay on needs_confirmation)
+call(ctx, "cart_clear", conv="conf")
+call(ctx, "set_location", lat=6.4474, lon=3.4723, conv="conf")  # precise → skip street geocode
+call(ctx, "cart_add", product_id="d-pho6", conv="conf")
+for conf in (False, "false", "true", 0, 1, None, ""):
+    r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080",
+             address="1 Rd", city="Lekki", confirm=conf, conv="conf")
+    assert r.get("status") == "needs_confirmation", (conf, r)
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080",
+         address="1 Rd", city="Lekki", confirm=True, conv="conf")
+assert "not configured" in r.get("error", ""), r
+
+# --- short maps.app.goo.gl link expands via redirect then parses coords
+delivery = importlib.import_module(ROOT.name + ".delivery")
+assert delivery.parse_coords("https://maps.app.goo.gl/abc123") == (6.4474, 3.4723)
+assert delivery.parse_coords("https://goo.gl/maps/xyz") == (6.4474, 3.4723)
+r = call(ctx, "set_location", shared_location="https://maps.app.goo.gl/abc123", conv="short")
+assert r["precise"] and "Lekki" in r["location"], r
+
+# --- street geocode: multi-shape (Ozumba only without countrycodes) + fallback note
+call(ctx, "cart_clear", conv="street")
+call(ctx, "set_location", city="Lekki", conv="street")  # not precise
+call(ctx, "cart_add", product_id="d-pho6", conv="street")
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080",
+         address="Ozumba Mbadiwe Avenue", city="Lagos", conv="street")
+assert r["status"] == "needs_confirmation" and "location_note" not in r["summary"], r
+# unknown street → city fee + note
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="080",
+         address="999 Nowhere Lane Ext", city="Lekki", conv="street")
+assert r["status"] == "needs_confirmation" and "location_note" in r["summary"] and "Couldn't pin" in r["summary"]["location_note"], r
 
 # --- handlers never raise
 for name in ctx.tools:

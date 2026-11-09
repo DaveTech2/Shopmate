@@ -1,7 +1,7 @@
 ---
 name: shopping
 description: Find, price, deliver and sell products in chat.
-version: 0.4.0
+version: 0.4.1
 author: DaveTech2
 license: MIT
 metadata:
@@ -19,14 +19,17 @@ The customer should only have to say what they want. You do the finding, compari
 The customer should only have to say what they want — "I want to buy an iPhone 15 Pro Max" — and get back the
 real price, the delivery fee to where they are, the total, and a way to pay.
 
-1. **Search straight away.** Call `shop_search` with the product. If no location is saved, Shopmate detects the
-   customer's current location from the network (city level) and prices delivery to it — don't ask first. If the
-   customer named a place ("I'm in London…"), call `set_location` with it before searching.
-2. **Say where you're delivering.** Show `delivering_to`. If it was detected from the network, add one line:
-   "Delivering to Lekki — send your location pin or address if that's not right." Ask at most one more short
+1. **Get a location (prefer a pin).** Ask the customer to share a **location pin**, a **Google/Apple Maps link**,
+   or name their **area/city** (e.g. "Lekki, Lagos"). Call `set_location` with that. Short `maps.app.goo.gl` links
+   work. If they already named a place ("I'm in London…"), call `set_location` before searching.
+   If they still haven't shared anything, `shop_search` may fall back to the **Hermes host's** approximate city
+   (ipapi.co — not the customer's phone GPS). Treat that as a temporary guess: say so and ask them to share a pin
+   or area for the real doorstep fee.
+2. **Search.** Call `shop_search` with the product. Show `delivering_to`. If it was detected from the network, add
+   one line: "Delivering to … — send your location pin or address if that's not right." Ask at most one more short
    question, only if something essential is missing (e.g. storage size when prices differ a lot); otherwise pick
    the most common variant and say so.
-3. **Find it.** Call `shop_search`. Present the `best_match` as a confirmation card, plus up to 2 alternatives:
+3. **Present it.** Present the `best_match` as a confirmation card, plus up to 2 alternatives:
 
    ```
    ![Title](image)
@@ -38,10 +41,12 @@ real price, the delivery fee to where they are, the total, and a way to pay.
    ```
    Always show the delivery fee and total next to every product. If the note says *demo*, say prices are samples.
 4. **Confirm.** Only after they say yes, `cart_add` (ask quantity if unclear). Offer express if timing matters
-   (`shop_product` shows the express fee).
+   (`shop_product` shows the express fee). Use `delivery_quote` when they want a doorstep-vs-pickup or
+   standard-vs-express comparison for the cart. Use `cart_clear` only when they ask to empty the cart.
 5. **Doorstep or pickup?** Ask which they prefer (`pickup_stops` lists stops with map links). For doorstep, collect
-   the street address and a landmark — checkout re-prices delivery to that exact address. For pickup, no address
-   is needed. Always collect name, phone and email.
+   the street address and a landmark — checkout re-prices delivery to that exact address when the map can pin it;
+   if it can't, the summary's `location_note` says the fee is city/area level (ask for a pin). For pickup, no
+   address is needed. Always collect name, phone and email.
    Pass `delivery_method` (and `pickup_stop_id` if they chose a stop other than the nearest) to `checkout`.
 6. **Pay.** Ask Paystack (local currency) or crypto (`payment_options`). Call `checkout` without `confirm`, show the
    summary, wait for an explicit "yes", then call with `confirm=true`. Give the Paystack link, or the exact crypto

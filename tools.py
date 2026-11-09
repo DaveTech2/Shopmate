@@ -446,11 +446,6 @@ def checkout(args, **kwargs):
             return _err("No pickup stop near this location; use doorstep delivery.")
         args = dict(args, address=args.get("address") or "Pickup at " + stop["name"])
     args = dict(args, city=args.get("city") or loc.get("area") or loc.get("city") or loc["name"])
-    if dmethod == "doorstep" and args.get("address") and not loc.get("precise"):
-        from . import geo  # price to the exact street address, not just the city
-        exact = geo.search("%s, %s" % (args["address"], args["city"]), loc.get("country"))
-        if exact and delivery._km(loc, exact) <= 80:
-            loc = dict(exact, precise=True)
     required = ["full_name", "email", "phone", "address", "city"]
     missing = [k for k in required if not str(args.get(k) or "").strip()]
     if missing:
@@ -465,6 +460,17 @@ def checkout(args, **kwargs):
     lines, subtotal = store.read(lambda d: _cart_summary(d, cid))
     if not lines:
         return _err("Cart is empty")
+    street_fallback_note = None
+    if dmethod == "doorstep" and args.get("address") and not loc.get("precise"):
+        from . import geo  # price to the exact street address, not just the city
+        exact = geo.search_address(args["address"], args.get("city") or loc.get("name"), loc.get("country"))
+        if exact and delivery._km(loc, exact) <= 80:
+            loc = dict(exact, precise=True)
+        else:
+            street_fallback_note = (
+                "Couldn't pin the street address on the map; delivery fee is priced to %s (city/area). "
+                "Share a location pin or maps link for an exact doorstep price." % loc["name"]
+            )
     base = _base_currency(lines)
     items = [(l, l["qty"]) for l in lines]
     q = _pickup(stop, items, speed, base) if stop else _ship(items, loc, speed, base)
@@ -494,10 +500,12 @@ def checkout(args, **kwargs):
                    delivery_method=dmethod, delivery_distance_km=q["distance_km"],
                    pay_with=("Paystack (%s)" % pay_cur) if method == "paystack" else "Crypto (%s)" % coin,
                    amount_to_pay=_money(charge, pay_cur) + ("" if method == "paystack" else " worth of " + coin.upper()))
+    if street_fallback_note:
+        summary["location_note"] = street_fallback_note
     if pay_cur != base:
         summary["exchange_rate"] = "1 %s = %s %s (live mid-market rate)" % (base, round(rate, 6), pay_cur)
 
-    if not args.get("confirm"):
+    if args.get("confirm") is not True:
         return _ok(status="needs_confirmation", summary=summary,
                    instruction="Show this summary to the customer and call checkout again with confirm=true only after they agree.")
 
