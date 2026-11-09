@@ -76,6 +76,33 @@ def _connect() -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_tickets_order ON tickets(order_id);
         CREATE INDEX IF NOT EXISTS idx_tickets_conv ON tickets(conversation_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_tickets_email ON tickets(email);
+        CREATE TABLE IF NOT EXISTS cards (
+            email TEXT NOT NULL,
+            signature TEXT NOT NULL,
+            authorization_code TEXT NOT NULL,
+            last4 TEXT,
+            brand TEXT,
+            bank TEXT,
+            bin TEXT,
+            exp_month TEXT,
+            exp_year TEXT,
+            card_type TEXT,
+            reusable INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            payload TEXT NOT NULL,
+            PRIMARY KEY (email, signature)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cards_email ON cards(email);
+        CREATE TABLE IF NOT EXISTS transfers (
+            reference TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL,
+            amount REAL NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'NGN',
+            status TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            payload TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_transfers_order ON transfers(order_id);
         """
     )
     return conn
@@ -348,6 +375,184 @@ def find_tickets(*, ticket_id: str = None, order_id: str = None, conversation_id
                 ).fetchall()
                 return [json.loads(r["payload"]) for r in rows]
             return []
+        finally:
+            conn.close()
+
+
+
+# ---------- saved cards (Paystack reusable authorizations) ----------
+
+def save_card(email: str, auth: dict) -> dict | None:
+    """Upsert a reusable authorization keyed by email+signature (or auth code)."""
+    email_n = _norm_email(email)
+    if not email_n or not auth or not auth.get("authorization_code"):
+        return None
+    if auth.get("reusable") is False:
+        return None
+    sig = auth.get("signature") or auth.get("authorization_code")
+    payload = dict(auth)
+    with _LOCK:
+        conn = _connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "INSERT OR REPLACE INTO cards(email,signature,authorization_code,last4,brand,bank,bin,"
+                "exp_month,exp_year,card_type,reusable,created_at,payload) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    email_n, sig, auth["authorization_code"],
+                    auth.get("last4"), auth.get("brand"), auth.get("bank"), auth.get("bin"),
+                    auth.get("exp_month"), auth.get("exp_year"), auth.get("card_type"),
+                    1 if auth.get("reusable", True) else 0,
+                    int(time.time()), json.dumps(payload, ensure_ascii=False),
+                ),
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+    return public_card(payload)
+
+
+def public_card(auth: dict) -> dict:
+    """Customer-facing card view — never includes authorization_code."""
+    return {
+        "card_id": auth.get("signature") or auth.get("authorization_code"),
+        "last4": auth.get("last4"),
+        "brand": auth.get("brand"),
+        "bank": auth.get("bank"),
+        "bin": auth.get("bin"),
+        "exp_month": auth.get("exp_month"),
+        "exp_year": auth.get("exp_year"),
+        "card_type": auth.get("card_type"),
+        "label": "card ending %s" % (auth.get("last4") or "????"),
+    }
+
+
+def list_cards(email: str) -> list:
+    email_n = _norm_email(email)
+    if not email_n:
+        return []
+    with _LOCK:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                "SELECT payload FROM cards WHERE email=? AND reusable=1 ORDER BY created_at DESC",
+                (email_n,),
+            ).fetchall()
+            return [public_card(json.loads(r["payload"])) for r in rows]
+        finally:
+            conn.close()
+
+
+def get_card(email: str, card_id: str) -> dict | None:
+    """Return full auth payload (incl. authorization_code) for charging."""
+    email_n = _norm_email(email)
+    if not email_n or not card_id:
+        return None
+    with _LOCK:
+        conn = _connect()
+        try:
+            row = conn.execute(
+                "SELECT payload FROM cards WHERE email=? AND (signature=? OR authorization_code=?)",
+                (email_n, card_id, card_id),
+            ).fetchone()
+            return json.loads(row["payload"]) if row else None
+        finally:
+            conn.close()
+
+
+def remove_card(email: str, card_id: str) -> bool:
+    email_n = _norm_email(email)
+    if not email_n or not card_id:
+        return False
+    with _LOCK:
+        conn = _connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            cur = conn.execute(
+                "DELETE FROM cards WHERE email=? AND (signature=? OR authorization_code=?)",
+                (email_n, card_id, card_id),
+            )
+            conn.execute("COMMIT")
+            return cur.rowcount > 0
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+
+# ---------- transfers (idempotent by reference) ----------
+
+def get_transfer(reference: str) -> dict | None:
+    with _LOCK:
+        conn = _connect()
+        try:
+            row = conn.execute("SELECT payload FROM transfers WHERE reference=?", (reference,)).fetchone()
+            return json.loads(row["payload"]) if row else None
+        finally:
+            conn.close()
+
+
+def save_transfer(reference: str, order_id: str, amount: float, currency: str, status: str, payload: dict) -> dict:
+    """Insert-or-get: if reference exists, return existing (idempotency)."""
+    with _LOCK:
+        conn = _connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT payload FROM transfers WHERE reference=?", (reference,)).fetchone()
+            if row:
+                conn.execute("COMMIT")
+                return json.loads(row["payload"])
+            body = dict(payload or {}, reference=reference, order_id=order_id,
+                        amount=amount, currency=currency, status=status,
+                        created_at=int(time.time()))
+            conn.execute(
+                "INSERT INTO transfers(reference,order_id,amount,currency,status,created_at,payload) VALUES(?,?,?,?,?,?,?)",
+                (reference, order_id, float(amount), currency, status, body["created_at"],
+                 json.dumps(body, ensure_ascii=False)),
+            )
+            conn.execute("COMMIT")
+            return body
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+
+def update_transfer(reference: str, status: str, payload_patch: dict = None) -> dict | None:
+    with _LOCK:
+        conn = _connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT payload FROM transfers WHERE reference=?", (reference,)).fetchone()
+            if not row:
+                # allow creating from webhook
+                body = dict(payload_patch or {}, reference=reference, status=status, created_at=int(time.time()))
+                conn.execute(
+                    "INSERT INTO transfers(reference,order_id,amount,currency,status,created_at,payload) VALUES(?,?,?,?,?,?,?)",
+                    (reference, body.get("order_id") or "", float(body.get("amount") or 0),
+                     body.get("currency") or "NGN", status, body["created_at"],
+                     json.dumps(body, ensure_ascii=False)),
+                )
+                conn.execute("COMMIT")
+                return body
+            body = json.loads(row["payload"])
+            body["status"] = status
+            if payload_patch:
+                body.update(payload_patch)
+            conn.execute(
+                "UPDATE transfers SET status=?, payload=? WHERE reference=?",
+                (status, json.dumps(body, ensure_ascii=False), reference),
+            )
+            conn.execute("COMMIT")
+            return body
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
         finally:
             conn.close()
 

@@ -451,13 +451,19 @@ def delivery_quote(args, **kwargs):
 
 @safe
 def payment_options(args, **kwargs):
+    email = (args.get("email") or "").strip()
+    cards = store.list_cards(email) if email else []
     return _ok(
         paystack={"enabled": bool(providers.get_secret("PAYSTACK_SECRET_KEY")),
                   "currencies": sorted(payments.PAYSTACK_CURRENCIES),
                   "note": "Only currencies enabled on the store's Paystack account will work."},
+        saved_cards={"enabled": bool(cards), "cards": cards,
+                     "note": "Pay with a saved card via payment_method=saved_card and card_id (confirm=true)."},
         crypto={"enabled": bool(providers.get_secret("NOWPAYMENTS_API_KEY")),
                 "coins": sorted(payments.CRYPTO_COINS),
-                "note": "Priced in USD at the live rate, paid in the chosen coin."})
+                "note": "Priced in USD at the live rate, paid in the chosen coin."},
+        bank_transfers={"enabled": _transfers_allowed(),
+                        "note": "NGN bank payouts/refunds require SHOPMATE_ALLOW_TRANSFERS=1 (moves operator funds)."})
 
 
 @safe
@@ -486,8 +492,8 @@ def checkout(args, **kwargs):
         return _err("Email address looks invalid")
     speed = args.get("speed") or "standard"
     method = (args.get("payment_method") or "paystack").lower()
-    if method not in ("paystack", "crypto"):
-        return _err("payment_method must be paystack or crypto")
+    if method not in ("paystack", "crypto", "saved_card"):
+        return _err("payment_method must be paystack, saved_card or crypto")
 
     lines, subtotal = store.read(lambda d: _cart_summary(d, cid))
     if not lines:
@@ -509,15 +515,23 @@ def checkout(args, **kwargs):
     fee, eta = q["fee"], q["eta"]
     total = round(subtotal + fee, 2)
 
-    if method == "paystack":
+    if method in ("paystack", "saved_card"):
         if args.get("currency"):
             pay_cur = args["currency"].upper()
-        else:  # customer's local currency if Paystack takes it, else the cart's, else USD (international cards)
+        else:
             local = providers.currency_for(loc.get("country"))
             pay_cur = next((c for c in (local, base, "USD") if c in payments.PAYSTACK_CURRENCIES), "USD")
         if pay_cur not in payments.PAYSTACK_CURRENCIES:
             return _err("Paystack doesn't support %s; use one of these or pay with crypto" % pay_cur, supported=sorted(payments.PAYSTACK_CURRENCIES))
         coin = None
+        if method == "saved_card":
+            card_id = (args.get("card_id") or "").strip()
+            if not card_id:
+                return _err("saved_card checkout needs card_id from payment_options/saved_cards")
+            auth = store.get_card(args["email"].strip(), card_id)
+            if not auth:
+                return _err("No saved card matches that card_id for this email", card_id=card_id)
+            args = dict(args, _saved_auth=auth, card_last4=auth.get("last4"))
     else:
         pay_cur = "USD"
         coin = payments.CRYPTO_COINS.get((args.get("crypto_coin") or "usdt").lower())
@@ -531,23 +545,36 @@ def checkout(args, **kwargs):
                    subtotal=_money(subtotal, base), delivery_fee=_money(fee, base), delivery_eta=eta,
                    total=_money(total, base), deliver_to=("%s — %s" % (args["full_name"], q["to"])) if stop else "%s, %s, %s" % (args["full_name"], args["address"], q["to"]),
                    delivery_method=dmethod, delivery_distance_km=q["distance_km"],
-                   pay_with=("Paystack (%s)" % pay_cur) if method == "paystack" else "Crypto (%s)" % coin,
-                   amount_to_pay=_money(charge, pay_cur) + ("" if method == "paystack" else " worth of " + coin.upper()))
+                   pay_with=(("Saved card ending %s (%s)" % ((args.get("card_last4") or "????"), pay_cur))
+                             if method == "saved_card" else
+                             ("Paystack (%s)" % pay_cur) if method in ("paystack", "saved_card") else "Crypto (%s)" % coin),
+                   amount_to_pay=_money(charge, pay_cur) + ("" if method != "crypto" else " worth of " + coin.upper()))
     if street_fallback_note:
         summary["location_note"] = street_fallback_note
     if pay_cur != base:
         summary["exchange_rate"] = "1 %s = %s %s (live mid-market rate)" % (base, round(rate, 6), pay_cur)
+    if method == "saved_card" and args.get("_saved_auth"):
+        auth = args["_saved_auth"]
+        summary["pay_with"] = "Saved %s ending %s (%s)" % ((auth.get("brand") or "card"), auth.get("last4") or "????", pay_cur)
+        summary["card"] = store.public_card(auth)
 
     if args.get("confirm") is not True:
         return _ok(status="needs_confirmation", summary=summary,
                    instruction="Show this summary to the customer and call checkout again with confirm=true only after they agree.")
 
-    key = providers.get_secret("PAYSTACK_SECRET_KEY" if method == "paystack" else "NOWPAYMENTS_API_KEY")
+    key_name = "NOWPAYMENTS_API_KEY" if method == "crypto" else "PAYSTACK_SECRET_KEY"
+    key = providers.get_secret(key_name)
     if not key:
         return _err("%s payments are not configured. No order was placed and nothing was charged." % method, summary=summary)
-    live_key = (method == "paystack" and key.startswith("sk_live")) or method == "crypto"
+    live_key = (method in ("paystack", "saved_card") and key.startswith("sk_live")) or method == "crypto"
     if live_key and any(str(l.get("price_source", "")).startswith("demo") for l in lines):
         return _err("Cart contains demo-catalog items with sample prices; refusing a real charge. Search live products instead.")
+
+    # Enrich summary with saved card label before charging
+    if method == "saved_card":
+        auth = args.get("_saved_auth") or {}
+        summary["pay_with"] = "Saved %s ending %s (%s)" % ((auth.get("brand") or "card"), auth.get("last4") or "????", pay_cur)
+        summary["card"] = store.public_card(auth)
 
     order_id = "SM-" + time.strftime("%y%m%d") + "-" + uuid.uuid4().hex[:6].upper()
     order = dict(order_id=order_id, created_at=int(time.time()), conversation_id=cid,
@@ -559,16 +586,42 @@ def checkout(args, **kwargs):
     if method == "paystack":
         pay = payments.paystack_initialize(key, args["email"].strip(), charge, pay_cur, order_id,
                                            {"order_id": order_id, "items": len(lines), "city": args["city"]})
-        order.update(payment_url=pay.get("authorization_url"), test_mode=key.startswith("sk_test"))
-        out = dict(pay_here=order["payment_url"], test_mode=order["test_mode"])
-    else:
-        pay = payments.crypto_create(key, charge, coin, order_id, "Shopmate order %s (%d items)" % (order_id, len(lines)))
-        order.update(crypto_payment_id=pay["payment_id"], pay_address=pay.get("pay_address"),
-                     pay_amount=pay.get("pay_amount"), pay_coin=pay.get("pay_currency"), memo=pay.get("payin_extra_id"))
-        out = dict(send_exactly="%s %s" % (pay.get("pay_amount"), str(pay.get("pay_currency")).upper()),
-                   to_address=pay.get("pay_address"), memo_or_tag=pay.get("payin_extra_id"),
-                   warning="Send on the correct network for %s only; crypto payments can't be reversed." % coin)
-
+        order.update(payment_url=pay.get("authorization_url"), test_mode=key.startswith("sk_test"),
+                     payment_reference=order_id)
+        out = dict(pay_here=order["payment_url"], test_mode=order["test_mode"],
+                   note="After the customer pays, call order_status with refresh=true to verify via Paystack.")
+        store.save_order(order)
+        store.transact(lambda d: d["carts"].pop(cid, None))
+        return _ok(status="awaiting_payment", order_id=order_id, amount=_money(charge, pay_cur), delivery_eta=eta,
+                   items=[{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in lines], **out)
+    if method == "saved_card":
+        auth = args["_saved_auth"]
+        # Distinct reference for the charge; verify uses this reference
+        pay_ref = order_id + "-CHG"
+        tx = payments.paystack_charge_authorization(
+            key, args["email"].strip(), charge, pay_cur, auth["authorization_code"], pay_ref,
+            {"order_id": order_id, "items": len(lines), "city": args["city"]})
+        order.update(payment_reference=pay_ref, test_mode=key.startswith("sk_test"),
+                     authorization=payments.sanitize_authorization(tx.get("authorization") or auth))
+        store.save_order(order)
+        store.transact(lambda d: d["carts"].pop(cid, None))
+        order = _apply_paystack_success(order, tx)
+        if order.get("payment_status") == "paid":
+            return _ok(status="paid", order_id=order_id, amount=_money(charge, pay_cur), delivery_eta=eta,
+                       card=store.public_card(order.get("authorization") or auth),
+                       items=[{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in lines],
+                       note="Charged saved card; Paystack verify matched amount/currency.")
+        return _ok(status=order.get("payment_status") or "pending", order_id=order_id,
+                   amount=_money(charge, pay_cur),
+                   note="Saved-card charge did not succeed; check order_status.",
+                   gateway_response=tx.get("gateway_response"))
+    # crypto
+    pay = payments.crypto_create(key, charge, coin, order_id, "Shopmate order %s (%d items)" % (order_id, len(lines)))
+    order.update(crypto_payment_id=pay["payment_id"], pay_address=pay.get("pay_address"),
+                 pay_amount=pay.get("pay_amount"), pay_coin=pay.get("pay_currency"), memo=pay.get("payin_extra_id"))
+    out = dict(send_exactly="%s %s" % (pay.get("pay_amount"), str(pay.get("pay_currency")).upper()),
+               to_address=pay.get("pay_address"), memo_or_tag=pay.get("payin_extra_id"),
+               warning="Send on the correct network for %s only; crypto payments can't be reversed." % coin)
     store.save_order(order)
     store.transact(lambda d: d["carts"].pop(cid, None))
     return _ok(status="awaiting_payment", order_id=order_id, amount=_money(charge, pay_cur), delivery_eta=eta,
@@ -578,6 +631,57 @@ def checkout(args, **kwargs):
 
 _CRYPTO_DONE = {"finished", "confirmed"}
 _CRYPTO_FAIL = {"failed", "expired", "refunded"}
+
+
+def _transfers_allowed() -> bool:
+    """Operator must opt in — transfers move money out of the Paystack balance."""
+    import os
+    for name in ("SHOPMATE_ALLOW_TRANSFERS", "PAYSTACK_ALLOW_TRANSFERS"):
+        v = os.environ.get(name) or providers.get_secret(name)
+        if v is None:
+            continue
+        if str(v).strip().lower() in ("1", "true", "yes", "on"):
+            return True
+        if str(v).strip().lower() in ("0", "false", "no", "off"):
+            return False
+    return bool(providers.setting("allow_transfers", False))
+
+
+def _apply_paystack_success(order, tx):
+    """Mark paid only when verify/charge reports success with matching amount+currency; save auth."""
+    oid = order["order_id"]
+    st = tx.get("status")
+    amount_ok = int(tx.get("amount") or 0) == int(round(float(order.get("charge") or 0) * 100))
+    currency_ok = (tx.get("currency") or "").upper() == (order.get("pay_currency") or "").upper()
+    if st == "success" and amount_ok and currency_ok:
+        auth = payments.sanitize_authorization(tx.get("authorization") or {})
+        def mut(o):
+            o["payment_status"] = "paid"
+            o["delivery_status"] = "processing"
+            o["paid_at"] = int(time.time())
+            o["paystack_transaction_id"] = tx.get("id")
+            if auth:
+                o["authorization"] = auth
+            return o
+        updated = store.update_order(oid, mut) or order
+        if auth and auth.get("reusable"):
+            email = (order.get("customer") or {}).get("email") or ""
+            if email:
+                store.save_card(email, auth)
+        return updated
+    if st in ("failed", "abandoned", "reversed"):
+        def mut(o):
+            o["payment_status"] = st
+            return o
+        return store.update_order(oid, mut) or order
+    # amount mismatch — do not mark paid
+    if st == "success" and not (amount_ok and currency_ok):
+        def mut(o):
+            o["payment_note"] = "Paystack success but amount/currency mismatch; not marking paid"
+            return o
+        return store.update_order(oid, mut) or order
+    return order
+
 _REFUNDABLE = {"paid", "processing", "shipped"}  # not delivered / already refunded
 _DELIVERED_BLOCK = {"delivered", "completed"}
 _REFUND_WINDOW_SECS = 14 * 24 * 3600  # 14 days from paid_at / created_at
@@ -608,29 +712,26 @@ def _order_brief(o):
 
 
 def _refresh_payment(order):
-    """Hit the payment provider. Returns updated order (may be unchanged)."""
+    """Hit the payment provider (Paystack verify or NOWPayments). Saves reusable card auth on success."""
     if order.get("payment_status") in ("paid", "refunded", "refund_pending"):
         return order
     method = order.get("payment_method", "paystack")
-    key = providers.get_secret("PAYSTACK_SECRET_KEY" if method == "paystack" else "NOWPAYMENTS_API_KEY")
+    if method in ("paystack", "saved_card"):
+        key = providers.get_secret("PAYSTACK_SECRET_KEY")
+        if not key:
+            return order
+        # Prefer the charge reference if saved-card used a distinct ref
+        ref = order.get("payment_reference") or order["order_id"]
+        tx = payments.paystack_verify(key, ref)
+        return _apply_paystack_success(order, tx)
+    key = providers.get_secret("NOWPAYMENTS_API_KEY")
     if not key:
         return order
-    new = None
-    oid = order["order_id"]
-    if method == "paystack":
-        tx = payments.paystack_verify(key, oid)
-        st = tx.get("status")
-        if st == "success" and int(tx.get("amount") or 0) == int(round(order["charge"] * 100)) \
-                and (tx.get("currency") or "").upper() == order["pay_currency"]:
-            new = "paid"
-        elif st in ("failed", "abandoned", "reversed"):
-            new = st
-    else:
-        st = payments.crypto_status(key, order["crypto_payment_id"]).get("payment_status")
-        new = "paid" if st in _CRYPTO_DONE else (st if st in _CRYPTO_FAIL else ("confirming" if st else None))
+    st = payments.crypto_status(key, order["crypto_payment_id"]).get("payment_status")
+    new = "paid" if st in _CRYPTO_DONE else (st if st in _CRYPTO_FAIL else ("confirming" if st else None))
     if not new:
         return order
-
+    oid = order["order_id"]
     def mut(o):
         o["payment_status"] = new
         if new == "paid":
@@ -683,15 +784,64 @@ def order_status(args, **kwargs):
                 res["to_address"] = order["pay_address"]
         if order.get("refund"):
             res["refund"] = order["refund"]
+        auth = order.get("authorization") or {}
+        if auth.get("last4"):
+            res["card"] = {"last4": auth.get("last4"), "brand": auth.get("brand"), "bank": auth.get("bank")}
+        if order.get("payment_note"):
+            res["payment_note"] = order["payment_note"]
         return _ok(**res)
 
     return _ok(orders=[_order_brief(o) for o in orders], count=len(orders),
                note="Indexed lookup (no payment-provider call). Pass refresh=true to re-check payment.")
 
 
+
+@safe
+def saved_cards(args, **kwargs):
+    """List or remove reusable Paystack authorizations for a customer email."""
+    email = (args.get("email") or "").strip()
+    if not email or not _EMAIL.match(email):
+        return _err("A valid email is required")
+    action = (args.get("action") or "list").strip().lower()
+    if action == "list":
+        cards = store.list_cards(email)
+        return _ok(email=email, cards=cards, count=len(cards),
+                   note="Use payment_method=saved_card with card_id at checkout (confirm=true).")
+    if action == "remove":
+        card_id = (args.get("card_id") or "").strip()
+        if not card_id:
+            return _err("card_id is required to remove a saved card")
+        ok = store.remove_card(email, card_id)
+        if not ok:
+            return _err("No saved card matched that card_id", card_id=card_id)
+        return _ok(removed=True, card_id=card_id, cards=store.list_cards(email))
+    if action == "bin":
+        # Optional Card BIN lookup for display enrichment
+        card_id = (args.get("card_id") or "").strip()
+        auth = store.get_card(email, card_id) if card_id else None
+        bin6 = (args.get("bin") or (auth or {}).get("bin") or "").strip()
+        key = providers.get_secret("PAYSTACK_SECRET_KEY")
+        if not key:
+            return _err("PAYSTACK_SECRET_KEY not configured")
+        if not bin6:
+            return _err("bin or card_id with a stored BIN required")
+        info = payments.resolve_card_bin(key, bin6)
+        return _ok(bin=info, card=store.public_card(auth) if auth else None,
+                   note="BIN metadata only (brand/bank). BVN and phone resolution are not used.")
+    return _err("action must be list, remove or bin")
+
+
 @safe
 def request_refund(args, **kwargs):
-    """Two-step refund: preview without confirm, execute with confirm=true."""
+    """Two-step refund: preview without confirm, execute with confirm=true.
+
+    refund_method:
+      - paystack (default): POST /refund to original card/channel
+      - bank_transfer: NGN payout via Transfers API (requires SHOPMATE_ALLOW_TRANSFERS=1)
+      - crypto: manual payout address (unchanged)
+    For bank_transfer, first call resolves the account and returns the account_name; the
+    agent MUST show that name and amount, then confirm=true with the same details.
+    """
     oid = (args.get("order_id") or "").strip()
     reason = (args.get("reason") or "").strip()
     if not oid:
@@ -704,9 +854,10 @@ def request_refund(args, **kwargs):
 
     pay_st = order.get("payment_status")
     del_st = order.get("delivery_status")
-    if pay_st in ("refunded", "refund_pending"):
-        return _err("This order already has a refund in progress or completed.", order_id=oid,
-                    payment_status=pay_st, refund=order.get("refund"))
+    if pay_st == "refunded":
+        return _err("This order is already refunded.", order_id=oid, payment_status=pay_st, refund=order.get("refund"))
+    if pay_st == "refund_pending" and (order.get("refund") or {}).get("transfer_reference"):
+        return _err("A bank transfer refund is already in progress.", order_id=oid, refund=order.get("refund"))
     if pay_st != "paid":
         return _err("Only paid orders can be refunded.", payment_status=pay_st)
     if del_st in _DELIVERED_BLOCK:
@@ -716,17 +867,147 @@ def request_refund(args, **kwargs):
     if paid_at and (time.time() - paid_at) > _REFUND_WINDOW_SECS:
         return _err("Refund window (14 days) has passed; open a support ticket.", order_id=oid)
 
-    method = order.get("payment_method", "paystack")
-    amount = order.get("charge", order.get("total"))
+    # Determine method
+    order_method = order.get("payment_method", "paystack")
+    refund_method = (args.get("refund_method") or "").strip().lower()
+    if not refund_method:
+        if args.get("bank_code") or args.get("account_number"):
+            refund_method = "bank_transfer"
+        elif order_method == "crypto":
+            refund_method = "crypto"
+        else:
+            refund_method = "paystack"
+    if refund_method not in ("paystack", "crypto", "bank_transfer"):
+        return _err("refund_method must be paystack, bank_transfer or crypto")
+
+    amount = float(args.get("amount") if args.get("amount") is not None else order.get("charge", order.get("total")))
+    paid_amount = float(order.get("charge", order.get("total")))
+    if amount <= 0 or amount > paid_amount + 1e-9:
+        return _err("Refund amount must be > 0 and <= the paid amount (%s)." % _money(paid_amount, order.get("pay_currency", "NGN")),
+                    paid=paid_amount, requested=amount)
     cur = order.get("pay_currency", "NGN")
+
+    # ----- bank transfer path (NGN) -----
+    if refund_method == "bank_transfer":
+        if not _transfers_allowed():
+            return _err(
+                "Bank transfers are disabled. Set SHOPMATE_ALLOW_TRANSFERS=1 to allow NGN payouts from the Paystack balance.",
+                order_id=oid)
+        key = providers.get_secret("PAYSTACK_SECRET_KEY")
+        if not key:
+            return _err("PAYSTACK_SECRET_KEY not configured. No transfer was sent.")
+        bank_code = (args.get("bank_code") or "").strip()
+        account_number = (args.get("account_number") or "").strip()
+        if not bank_code or not account_number:
+            banks = []
+            try:
+                banks = [{"name": b.get("name"), "code": b.get("code")} for b in payments.list_banks(key)[:40]]
+            except Exception as e:
+                banks = [{"error": str(e)}]
+            return _err("bank_code and account_number are required for bank_transfer refunds",
+                        banks=banks, note="Pick a bank code, then call again to resolve the account name.")
+        # Idempotency reference — one transfer per order
+        transfer_ref = "SM-TRF-" + oid
+        existing = store.get_transfer(transfer_ref)
+        if existing and existing.get("status") in ("success", "pending", "otp", "received"):
+            return _err("Transfer already submitted for this order (idempotent reference).",
+                        transfer=existing, order_id=oid)
+        # Resolve account — show name for customer/operator confirm
+        resolved = payments.resolve_account(key, account_number, bank_code)
+        account_name = (resolved.get("account_name") or "").strip()
+        if not account_name:
+            return _err("Could not resolve account name for that bank/account number.")
+        # Transfer currency is NGN; convert paid amount if needed
+        xfer_amount = amount
+        xfer_cur = "NGN"
+        if cur != "NGN":
+            xfer_amount = round(amount * providers.fx_rate(cur, "NGN"), 2)
+        summary = {
+            "order_id": oid,
+            "refund_method": "bank_transfer",
+            "reason": reason,
+            "amount": _money(xfer_amount, "NGN"),
+            "amount_value": xfer_amount,
+            "currency": "NGN",
+            "bank_code": bank_code,
+            "account_number": account_number,
+            "account_name": account_name,
+            "transfer_reference": transfer_ref,
+            "items": [{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in order.get("items") or []],
+            "warning": "This pays out from the store's Paystack balance. Confirm the account name matches the customer.",
+        }
+        if args.get("confirm") is not True:
+            return _ok(status="needs_confirmation", summary=summary,
+                       instruction="Show the resolved account_name and amount. Call again with confirm=true only after the customer confirms both.")
+        # Require the confirmed name to match (agent passes back account_name)
+        confirmed_name = (args.get("account_name") or "").strip()
+        if confirmed_name and confirmed_name.lower() != account_name.lower():
+            return _err("account_name does not match the resolved name.",
+                        resolved=account_name, provided=confirmed_name)
+        # Create recipient + initiate transfer
+        recipient = payments.create_transfer_recipient(key, account_name, account_number, bank_code, "NGN")
+        rcp = recipient.get("recipient_code")
+        if not rcp:
+            return _err("Transfer recipient creation failed", recipient=recipient)
+        # Record pending transfer first for idempotency
+        pre = store.save_transfer(transfer_ref, oid, xfer_amount, "NGN", "initiating",
+                                  {"recipient_code": rcp, "account_name": account_name,
+                                   "account_number": account_number, "bank_code": bank_code})
+        if pre.get("status") in ("success", "pending", "otp") and pre.get("transfer_code"):
+            return _err("Transfer already submitted for this order.", transfer=pre)
+        try:
+            tr = payments.initiate_transfer(key, xfer_amount, rcp, transfer_ref,
+                                            reason="Shopmate refund %s: %s" % (oid, reason), currency="NGN")
+        except Exception as e:
+            store.update_transfer(transfer_ref, "failed", {"error": str(e)})
+            return _err("Transfer initiate failed: %s" % e)
+        store.update_transfer(transfer_ref, tr.get("status") or "pending", {
+            "transfer_code": tr.get("transfer_code"), "provider": tr, "recipient_code": rcp,
+            "account_name": account_name, "account_number": account_number, "bank_code": bank_code,
+        })
+        def mut(o):
+            o["payment_status"] = "refund_pending"
+            o["refund"] = {
+                "status": "refund_pending", "reason": reason, "at": int(time.time()),
+                "provider": "paystack_transfer", "transfer_reference": transfer_ref,
+                "transfer_code": tr.get("transfer_code"), "amount": xfer_amount, "currency": "NGN",
+                "account_name": account_name, "account_number": account_number, "bank_code": bank_code,
+            }
+            return o
+        store.update_order(oid, mut)
+        # Fetch latest status
+        try:
+            latest = payments.fetch_transfer(key, tr.get("transfer_code") or transfer_ref)
+            store.update_transfer(transfer_ref, latest.get("status") or tr.get("status") or "pending", {"fetch": latest})
+            if latest.get("status") == "success":
+                def mut2(o):
+                    o["payment_status"] = "refunded"
+                    o["delivery_status"] = "cancelled"
+                    r = dict(o.get("refund") or {})
+                    r["status"] = "refunded"
+                    r["transfer_status"] = "success"
+                    o["refund"] = r
+                    return o
+                store.update_order(oid, mut2)
+                return _ok(status="refunded", order_id=oid, amount=_money(xfer_amount, "NGN"),
+                           account_name=account_name, transfer_reference=transfer_ref,
+                           transfer_code=tr.get("transfer_code"),
+                           note="Transfer succeeded. Order marked refunded.")
+        except Exception:
+            latest = tr
+        return _ok(status="refund_pending", order_id=oid, amount=_money(xfer_amount, "NGN"),
+                   account_name=account_name, transfer_reference=transfer_ref,
+                   transfer_code=tr.get("transfer_code"), transfer_status=tr.get("status"),
+                   note="Transfer queued. Webhooks (transfer.success/failed) or order_status refresh will finalize.")
+
     summary = {
         "order_id": oid,
         "amount": _money(amount, cur),
-        "method": method,
+        "method": refund_method,
         "reason": reason,
         "items": [{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in order.get("items") or []],
     }
-    if method == "crypto":
+    if refund_method == "crypto":
         payout = (args.get("payout_address") or "").strip()
         if not payout:
             return _err("Crypto refunds need payout_address (the wallet to receive the refund).", summary=summary)
@@ -737,33 +1018,34 @@ def request_refund(args, **kwargs):
         return _ok(status="needs_confirmation", summary=summary,
                    instruction="Show this refund summary and call request_refund again with confirm=true only after the customer agrees.")
 
-    if method == "paystack":
+    if refund_method == "paystack":
         key = providers.get_secret("PAYSTACK_SECRET_KEY")
         if not key:
             return _err("Paystack refunds are not configured. No refund was submitted.", summary=summary)
-        pay = payments.paystack_refund(key, oid, amount=amount, currency=cur, reason=reason)
+        ref = order.get("payment_reference") or oid
+        pay = payments.paystack_refund(key, ref, amount=amount, currency=cur, reason=reason)
         def mut(o):
             o["payment_status"] = "refunded"
             o["delivery_status"] = "cancelled"
             o["refund"] = {"status": "refunded", "reason": reason, "at": int(time.time()),
-                           "provider": "paystack", "provider_ref": (pay or {}).get("id") or (pay or {}).get("transaction") or oid}
+                           "provider": "paystack", "provider_ref": (pay or {}).get("id") or (pay or {}).get("transaction") or ref}
             return o
         order = store.update_order(oid, mut)
         return _ok(status="refunded", order_id=oid, amount=_money(amount, cur),
                    note="Paystack refund submitted. Funds return to the original payment method.")
-    else:
-        # Crypto: never auto-send; record a manual refund request for the operator.
-        payout = (args.get("payout_address") or "").strip()
-        def mut(o):
-            o["payment_status"] = "refund_pending"
-            o["refund"] = {"status": "refund_pending", "reason": reason, "at": int(time.time()),
-                           "provider": "crypto_manual", "payout_address": payout,
-                           "amount": amount, "currency": cur, "coin": o.get("pay_coin")}
-            return o
-        order = store.update_order(oid, mut)
-        return _ok(status="refund_pending", order_id=oid, amount=_money(amount, cur),
-                   payout_address=payout,
-                   note="Crypto refund recorded for manual payout. The store operator will send funds to the address provided. Not auto-sent.")
+
+    # crypto manual
+    payout = (args.get("payout_address") or "").strip()
+    def mut(o):
+        o["payment_status"] = "refund_pending"
+        o["refund"] = {"status": "refund_pending", "reason": reason, "at": int(time.time()),
+                       "provider": "crypto_manual", "payout_address": payout,
+                       "amount": amount, "currency": cur, "coin": o.get("pay_coin")}
+        return o
+    order = store.update_order(oid, mut)
+    return _ok(status="refund_pending", order_id=oid, amount=_money(amount, cur),
+               payout_address=payout,
+               note="Crypto refund recorded for manual payout. The store operator will send funds to the address provided. Not auto-sent.")
 
 
 @safe

@@ -23,6 +23,7 @@ TOOLS = [
     ("checkout", schemas.CHECKOUT, tools.checkout),
     ("order_status", schemas.ORDER_STATUS, tools.order_status),
     ("request_refund", schemas.REQUEST_REFUND, tools.request_refund),
+    ("saved_cards", schemas.SAVED_CARDS, tools.saved_cards),
     ("contact_support", schemas.CONTACT_SUPPORT, tools.contact_support),
 ]
 

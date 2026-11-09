@@ -9,7 +9,7 @@ description: >-
   (city level, from the network) or from a shared pin, maps link, area name or full address anywhere in the world — with doorstep or nearest
   pickup-stop options. On an explicit yes it builds the order, takes payment by Paystack in local
   currencies (NGN, GHS, KES, ZAR, USD, XOF, EGP, RWF) or crypto via NOWPayments, and verifies payment with the provider before marking the order paid, supports indexed order
-  lookup, Paystack/crypto refunds and built-in support tickets. 16 native tools plus the shopmate:shopping skill. Supports bulk carts (many products,
+  lookup, Paystack verify + saved-card charges, crypto/Paystack/bank-transfer refunds (transfers opt-in), webhooks helper, and built-in support tickets. 17 native tools plus the shopmate:shopping skill. Supports bulk carts (many products,
   up to 1000 of each, in one checkout).
   Disclosure — network calls to serpapi.com, api.paystack.co, api.nowpayments.io, open.er-api.com,
   ipapi.co and nominatim.openstreetmap.org; carts, saved locations and orders (customer name, email, phone and
@@ -20,7 +20,7 @@ tier: community
 category: tools
 requires_hermes: ">=0.21.5"
 docs_url: https://github.com/DaveTech2/Shopmate#readme
-version: "0.4.2"
+version: "0.5.0"
 capabilities:
   provides_tools:
     - shop_categories

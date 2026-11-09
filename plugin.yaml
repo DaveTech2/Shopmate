@@ -1,12 +1,12 @@
 name: shopmate
-version: "0.4.2"
+version: "0.5.0"
 manifest_version: 2
 api_version: 1
 description: >-
   Personal shopper agent for Hermes. Tell it what you want; it finds the product
   (live Google Shopping prices and photos), shows price plus the delivery fee to
   your location, and on your yes takes payment by Paystack (local currencies) or
-  crypto (NOWPayments) and tracks delivery.
+  crypto (NOWPayments), saved-card charges, optional NGN bank transfer refunds, and tracks delivery.
 author: DaveTech2
 license: MIT
 homepage: https://github.com/DaveTech2/Shopmate
@@ -28,6 +28,7 @@ provides_tools:
   - checkout
   - order_status
   - request_refund
+  - saved_cards
   - contact_support
 optional_env:
   - name: SERPAPI_API_KEY
@@ -44,4 +45,7 @@ optional_env:
     password: false
   - name: SUPPORT_WHATSAPP
     description: "Optional operator WhatsApp number shown on support tickets"
+    password: false
+  - name: SHOPMATE_ALLOW_TRANSFERS
+    description: "Set to 1 to allow NGN bank payouts via Paystack Transfers (moves operator balance)"
     password: false

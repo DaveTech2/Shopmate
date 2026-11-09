@@ -30,6 +30,9 @@ store = importlib.import_module(ROOT.name + ".store")
 PAID = {"paystack": False, "crypto": "waiting"}
 CALLS = []
 REFUNDED = {"ok": True}
+CHARGE = {"mismatch": False}
+TRANSFER = {"fail": False, "status": "success"}
+VERIFY = {"mismatch": False}
 
 
 def fake_http(url, data=None, headers=None, method=None):
@@ -94,13 +97,72 @@ def fake_http(url, data=None, headers=None, method=None):
         CALLS.append(("paystack_init", body))
         return {"status": True, "data": {"authorization_url": "https://checkout.paystack.com/abc", "reference": body["reference"]}}
     if "/transaction/verify/" in url:
-        init = [c[1] for c in CALLS if isinstance(c, tuple) and c[0] == "paystack_init"][-1]
-        return {"data": {"status": "success" if PAID["paystack"] else "ongoing", "amount": init["amount"], "currency": init["currency"]}}
+        inits = [c[1] for c in CALLS if isinstance(c, tuple) and c[0] == "paystack_init"]
+        charges = [c[1] for c in CALLS if isinstance(c, tuple) and c[0] == "charge_auth"]
+        ref = url.rsplit("/", 1)[-1]
+        if charges and (ref.endswith("-CHG") or not inits):
+            body = charges[-1]
+            amount, currency = body["amount"], body["currency"]
+        elif inits:
+            body = inits[-1]
+            amount, currency = body["amount"], body["currency"]
+        else:
+            amount, currency = 0, "NGN"
+        if VERIFY.get("mismatch"):
+            amount = amount + 99
+        auth = {"authorization_code": "AUTH_uh8bcl3zbn", "reusable": True, "signature": "SIG_yEXu7dLBeqG0kU7g95Ke",
+                "last4": "4081", "brand": "visa", "bank": "TEST BANK", "bin": "408408",
+                "exp_month": "12", "exp_year": "2030", "card_type": "visa"}
+        return {"data": {"status": "success" if PAID["paystack"] else "ongoing", "amount": amount,
+                         "currency": currency, "reference": ref, "authorization": auth, "id": 4099}}
     if url.endswith("/refund") and method == "POST":
         CALLS.append(("paystack_refund", body))
         if not REFUNDED["ok"]:
             return {"status": False, "message": "refund failed"}
         return {"status": True, "data": {"id": 99, "transaction": body.get("transaction"), "status": "processed"}}
+    if url.endswith("/transaction/charge_authorization") and method == "POST":
+        CALLS.append(("charge_auth", body))
+        if body.get("authorization_code") == "AUTH_BAD":
+            return {"status": True, "data": {"status": "failed", "gateway_response": "Declined", "amount": body["amount"],
+                    "currency": body["currency"], "reference": body["reference"]}}
+        if CHARGE.get("mismatch"):
+            return {"status": True, "data": {"status": "success", "amount": body["amount"] + 50, "currency": body["currency"],
+                    "reference": body["reference"], "authorization": {
+                        "authorization_code": body["authorization_code"], "reusable": True, "signature": "SIG_x",
+                        "last4": "4081", "brand": "visa", "bank": "TEST BANK", "bin": "408408"}}}
+        return {"status": True, "data": {"status": "success", "amount": body["amount"], "currency": body["currency"],
+                "reference": body["reference"], "id": 777,
+                "authorization": {"authorization_code": body["authorization_code"], "reusable": True,
+                                  "signature": "SIG_" + body["authorization_code"], "last4": "4081", "brand": "visa",
+                                  "bank": "TEST BANK", "bin": "408408", "exp_month": "12", "exp_year": "2030",
+                                  "card_type": "visa"}}}
+    if "/bank/resolve" in url:
+        CALLS.append(("resolve", url))
+        if "0000000000" in url:
+            return {"status": False, "message": "Account not found"}
+        return {"status": True, "data": {"account_number": "0123456789", "account_name": "ADA OBI"}}
+    if url.startswith("https://api.paystack.co/bank?") or url.rstrip("/").endswith("/bank"):
+        return {"status": True, "data": [{"name": "Guaranty Trust Bank", "code": "058"},
+                                         {"name": "Access Bank", "code": "044"}]}
+    if url.endswith("/transferrecipient") and method == "POST":
+        CALLS.append(("recipient", body))
+        return {"status": True, "data": {"recipient_code": "RCP_test", "name": body.get("name"),
+                                         "details": {"account_number": body.get("account_number"),
+                                                     "account_name": body.get("name"), "bank_code": body.get("bank_code")}}}
+    if url.endswith("/transfer") and method == "POST":
+        CALLS.append(("transfer", body))
+        if TRANSFER.get("fail"):
+            return {"status": False, "message": "Insufficient balance"}
+        return {"status": True, "data": {"transfer_code": "TRF_test", "reference": body["reference"],
+                                         "status": TRANSFER.get("status", "success"), "amount": body["amount"],
+                                         "recipient": body["recipient"]}}
+    if "/transfer/" in url and method != "POST":
+        code = url.rsplit("/", 1)[-1]
+        return {"status": True, "data": {"transfer_code": code, "reference": "SM-TRF-dummy",
+                                         "status": TRANSFER.get("status", "success"), "amount": 10000}}
+    if "/decision/bin/" in url:
+        return {"status": True, "data": {"bin": "408408", "brand": "Visa", "bank": "Test Bank",
+                                         "country_code": "NG", "card_type": "debit"}}
     if url.endswith("/v1/payment") and method == "POST":
         assert body["price_currency"] == "usd"
         return {"payment_id": 555, "pay_address": "TXyz", "pay_amount": 123.45, "pay_currency": body["pay_currency"], "payment_status": "waiting"}
@@ -157,7 +219,7 @@ import yaml
 manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text())
 assert sorted(manifest["provides_tools"]) == sorted(ctx.tools), "manifest/tools mismatch"
 assert "shopping" in ctx.skills and ":" not in "shopping"
-assert len(ctx.tools) == 16
+assert len(ctx.tools) == 17
 
 # --- demo mode (no keys)
 r = call(ctx, "shop_categories"); assert len(r["categories"]) == 24 and r["live_search"] is False
@@ -360,4 +422,196 @@ assert delivery.parse_coords("https://maps.app.goo.gl/abc123") == (6.4474, 3.472
 # handlers never raise
 for name in ctx.tools:
     json.loads(ctx.tools[name](None))
+
+# ========== v0.5 Paystack: verify, saved cards, transfers, webhooks ==========
+from shopmate import webhooks, payments as paymod
+import hashlib, hmac
+
+# --- verify saves authorization + marks paid only on match
+SECRETS.update(PAYSTACK_SECRET_KEY="sk_test_x", SERPAPI_API_KEY="k")
+PAID["paystack"] = False
+VERIFY["mismatch"] = False
+call(ctx, "cart_clear", conv="v5")
+call(ctx, "set_location", city="Lekki Phase 1", conv="v5")
+r = call(ctx, "shop_search", query="tecno spark 30", conv="v5")
+live_pid = r["results"][0]["id"]
+call(ctx, "cart_add", product_id=live_pid, conv="v5")
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", confirm=True, conv="v5")
+oid_v = r["order_id"]
+assert r["status"] == "awaiting_payment"
+# pending verify
+s = call(ctx, "order_status", order_id=oid_v, refresh=True, conv="v5")
+assert s["payment_status"] == "pending", s
+# success + match → paid + card saved
+PAID["paystack"] = True
+s = call(ctx, "order_status", order_id=oid_v, refresh=True, conv="v5")
+assert s["payment_status"] == "paid" and s.get("card", {}).get("last4") == "4081", s
+cards = call(ctx, "saved_cards", email="ada@example.com")
+assert cards["count"] >= 1 and cards["cards"][0]["last4"] == "4081", cards
+assert "authorization_code" not in cards["cards"][0]
+
+# amount mismatch must NOT mark paid
+call(ctx, "cart_add", product_id=live_pid, conv="v5m")
+PAID["paystack"] = True
+VERIFY["mismatch"] = True
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", confirm=True, conv="v5m")
+oid_m = r["order_id"]
+s = call(ctx, "order_status", order_id=oid_m, refresh=True, conv="v5m")
+assert s["payment_status"] != "paid", s
+VERIFY["mismatch"] = False
+
+# --- charge authorization (saved card)
+card_id = cards["cards"][0]["card_id"]
+call(ctx, "cart_clear", conv="v5c")
+call(ctx, "set_location", city="Lekki Phase 1", conv="v5c")
+call(ctx, "cart_add", product_id=live_pid, conv="v5c")
+# preview
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, conv="v5c")
+assert r["status"] == "needs_confirmation" and "4081" in r["summary"]["pay_with"], r
+assert r["summary"].get("card", {}).get("last4") == "4081"
+# confirm charge
+PAID["paystack"] = True
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, confirm=True, conv="v5c")
+assert r["status"] == "paid", r
+assert any(isinstance(c, tuple) and c[0] == "charge_auth" for c in CALLS)
+
+# charge amount mismatch
+CHARGE["mismatch"] = True
+call(ctx, "cart_add", product_id=live_pid, conv="v5cm")
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, confirm=True, conv="v5cm")
+assert r["status"] != "paid", r
+CHARGE["mismatch"] = False
+
+# remove card
+rm = call(ctx, "saved_cards", email="ada@example.com", action="remove", card_id=card_id)
+assert rm["removed"] is True
+left = call(ctx, "saved_cards", email="ada@example.com")
+assert all(c["card_id"] != card_id for c in left["cards"]), left
+
+# missing keys for saved card
+SECRETS.pop("PAYSTACK_SECRET_KEY", None)
+# re-save a card manually for structure
+store.save_card("bob@example.com", {"authorization_code": "AUTH_x", "reusable": True, "signature": "SIG_bob",
+                                    "last4": "4242", "brand": "visa", "bin": "408408"})
+call(ctx, "cart_add", product_id=live_pid, conv="v5nk")
+call(ctx, "set_location", city="Lekki", conv="v5nk")
+r = call(ctx, "checkout", full_name="Bob", email="bob@example.com", phone="080", address="1 Rd", city="Lekki",
+         payment_method="saved_card", card_id="SIG_bob", confirm=True, conv="v5nk")
+assert "not configured" in r.get("error", ""), r
+SECRETS["PAYSTACK_SECRET_KEY"] = "sk_test_x"
+
+# --- bank transfer refunds (opt-in)
+import os
+os.environ.pop("SHOPMATE_ALLOW_TRANSFERS", None)
+# need a paid order
+store.save_card("ada@example.com", {"authorization_code": "AUTH_uh8bcl3zbn", "reusable": True,
+                                    "signature": "SIG_yEXu7dLBeqG0kU7g95Ke", "last4": "4081", "brand": "visa", "bin": "408408"})
+# use existing paid oid_v
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789")
+assert "disabled" in r.get("error", "").lower() or "SHOPMATE_ALLOW_TRANSFERS" in r.get("error", ""), r
+
+os.environ["SHOPMATE_ALLOW_TRANSFERS"] = "1"
+# without bank details → bank list
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer")
+assert "bank_code" in r.get("error", "") and r.get("banks"), r
+# resolve preview
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789")
+assert r["status"] == "needs_confirmation" and r["summary"]["account_name"] == "ADA OBI", r
+# wrong confirmed name
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789", account_name="WRONG PERSON", confirm=True)
+assert "does not match" in r.get("error", ""), r
+# success transfer
+TRANSFER["status"] = "success"
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True)
+assert r["status"] == "refunded" and r["account_name"] == "ADA OBI", r
+# duplicate blocked
+r = call(ctx, "request_refund", order_id=oid_v, reason="again", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True)
+assert "already" in r.get("error", "").lower(), r
+
+# amount cap
+# fresh paid order
+PAID["paystack"] = True
+VERIFY["mismatch"] = False
+call(ctx, "cart_add", product_id=live_pid, conv="v5cap")
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", confirm=True, conv="v5cap")
+oid_cap = r["order_id"]
+call(ctx, "order_status", order_id=oid_cap, refresh=True, conv="v5cap")
+order_cap = store.get_order(oid_cap)
+r = call(ctx, "request_refund", order_id=oid_cap, reason="too much", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789", amount=float(order_cap["charge"]) + 1000, confirm=True)
+assert "paid amount" in r.get("error", "").lower() or "must be" in r.get("error", "").lower(), r
+
+# transfer initiate failure
+PAID["paystack"] = True
+call(ctx, "cart_add", product_id=live_pid, conv="v5tf")
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", confirm=True, conv="v5tf")
+oid_tf = r["order_id"]; call(ctx, "order_status", order_id=oid_tf, refresh=True, conv="v5tf")
+TRANSFER["fail"] = True
+r = call(ctx, "request_refund", order_id=oid_tf, reason="bank", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True)
+assert "failed" in r.get("error", "").lower(), r
+TRANSFER["fail"] = False
+os.environ.pop("SHOPMATE_ALLOW_TRANSFERS", None)
+
+# --- webhooks
+# rebuild a pending order then charge.success webhook
+PAID["paystack"] = False
+call(ctx, "cart_add", product_id=live_pid, conv="v5wh")
+r = call(ctx, "checkout", full_name="Ada", email="wh@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", confirm=True, conv="v5wh")
+oid_wh = r["order_id"]
+order_wh = store.get_order(oid_wh)
+amount_kobo = int(round(order_wh["charge"] * 100))
+body = json.dumps({"event": "charge.success", "data": {
+    "reference": oid_wh, "status": "success", "amount": amount_kobo, "currency": order_wh["pay_currency"],
+    "id": 999, "authorization": {"authorization_code": "AUTH_wh", "reusable": True, "signature": "SIG_wh",
+                                 "last4": "1111", "brand": "mastercard", "bin": "539983", "bank": "GTBank"},
+    "customer": {"email": "wh@example.com"},
+}}).encode()
+sig = hmac.new(b"sk_test_x", body, hashlib.sha512).hexdigest()
+# bad sig
+bad = webhooks.verify_and_handle(body, "0" * 128, "sk_test_x")
+assert bad["ok"] is False
+good = webhooks.verify_and_handle(body, sig, "sk_test_x")
+assert good["ok"] and good.get("payment_status") == "paid", good
+assert store.get_order(oid_wh)["payment_status"] == "paid"
+assert store.list_cards("wh@example.com")[0]["last4"] == "1111"
+
+# transfer.success webhook
+tr_ref = "SM-TRF-" + oid_wh
+store.save_transfer(tr_ref, oid_wh, 10, "NGN", "pending", {})
+store.update_order(oid_wh, lambda o: dict(o, payment_status="refund_pending",
+                                          refund={"status": "refund_pending", "transfer_reference": tr_ref}))
+ev = {"event": "transfer.success", "data": {"reference": tr_ref, "transfer_code": "TRF_x", "status": "success"}}
+assert webhooks.handle_event(ev)["handled"]
+assert store.get_order(oid_wh)["payment_status"] == "refunded"
+
+# refund.processed
+PAID["paystack"] = True
+call(ctx, "cart_add", product_id=live_pid, conv="v5rp")
+r = call(ctx, "checkout", full_name="Ada", email="rp@example.com", phone="080", address="1 Rd", city="Lekki",
+         confirm=True, conv="v5rp")
+oid_rp = r["order_id"]; call(ctx, "order_status", order_id=oid_rp, refresh=True, conv="v5rp")
+webhooks.handle_event({"event": "refund.processed", "data": {"transaction": {"reference": oid_rp}}})
+assert store.get_order(oid_rp)["payment_status"] == "refunded"
+
+# BIN helper
+SECRETS["PAYSTACK_SECRET_KEY"] = "sk_test_x"
+store.save_card("bin@example.com", {"authorization_code": "AUTH_b", "reusable": True, "signature": "SIG_b",
+                                    "last4": "9988", "brand": "visa", "bin": "408408"})
+b = call(ctx, "saved_cards", email="bin@example.com", action="bin", card_id="SIG_b")
+assert b.get("bin", {}).get("brand"), b
+
 print("ALL TESTS PASSED (%d tools)" % len(ctx.tools))

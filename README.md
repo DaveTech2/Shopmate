@@ -26,8 +26,9 @@ Or from Git: `hermes plugins install DaveTech2/Shopmate --enable`
 | Cart and bulk orders — images kept on every line | `cart_add`, `cart_update`, `cart_remove`, `cart_view`, `cart_clear` |
 | Delivery fee + ETA by distance and item size | `delivery_quote` |
 | Pay: Paystack or crypto (USDT, USDC, BTC, ETH, SOL, …) | `payment_options`, `checkout` |
-| Instant order lookup by id / email / phone / this chat (indexed SQLite) | `order_status` |
-| Refunds (Paystack API or manual crypto payout) | `request_refund` |
+| Instant order lookup + Paystack verify (amount/currency match) | `order_status` |
+| Saved reusable cards (charge authorization) | `saved_cards`, `checkout` (`saved_card`) |
+| Refunds (Paystack Refund API, optional NGN bank transfer, or crypto) | `request_refund` |
 | FAQ + support tickets | `contact_support` |
 
 A bundled skill (`shopmate:shopping`) tells the agent how to run the flow: ask which brand when several match, always show the exact product image, two-step checkout/refund with explicit confirmation, and never claim paid until the provider confirms.
@@ -45,6 +46,7 @@ Everything is optional. With no keys, Shopmate runs on its bundled **demo catalo
 | `NOWPAYMENTS_API_KEY` | Crypto checkout ([nowpayments.io](https://nowpayments.io)) |
 | `SUPPORT_EMAIL` | Optional operator email shown on support tickets |
 | `SUPPORT_WHATSAPP` | Optional operator WhatsApp shown on support tickets |
+| `SHOPMATE_ALLOW_TRANSFERS` | Set `1` to allow NGN bank payouts via Paystack Transfers (off by default; moves operator funds) |
 
 **Settings** (`config.yaml`, under `plugins.entries.shopmate.settings`):
 
@@ -76,15 +78,31 @@ Orders and support tickets are stored in `orders.sqlite` under the plugin data d
 - `request_refund`: paid + not delivered + within 14 days. Preview without `confirm`, then `confirm=true`. Paystack → `POST /refund`. Crypto → `refund_pending` with the customer's `payout_address` (manual; never auto-sent). Double-refunds are refused.
 - `contact_support`: FAQ (delivery, payments, refund policy), open a ticket (`missing` / `damaged` / `late` / `wrong_item` / `payment` / `other`), or check ticket status.
 
+## Paystack deep integration (v0.5)
+
+- **Verify**: after checkout, `order_status` (with `refresh=true` or a pending order id) calls `GET /transaction/verify/:reference` and marks the order **paid only** when status is `success` and amount+currency match. Reusable `authorization` metadata (code, last4, brand, bank, BIN — never full PAN) is stored and offered as a saved card.
+- **Charge authorization**: returning customers can pay with `payment_method=saved_card` + `card_id` (`POST /transaction/charge_authorization`), still behind `confirm=true`. `saved_cards` lists/removes cards; optional Card BIN lookup enriches brand/bank.
+- **Transfers (opt-in)**: with `SHOPMATE_ALLOW_TRANSFERS=1`, `request_refund` `refund_method=bank_transfer` resolves the NUBAN (`GET /bank/resolve` + `GET /bank`), shows the **account name** for confirmation, creates a recipient, initiates `POST /transfer` with idempotent reference `SM-TRF-{order_id}`, caps amount at the paid total, and fetches status. Disabled by default because it moves the operator's Paystack balance.
+- **Webhooks**: `shopmate.webhooks.verify_and_handle(raw_body, x-paystack-signature)` verifies HMAC-SHA512 with the secret key and applies `charge.success`, `transfer.success|failed|reversed`, `refund.processed`. Hermes does not host HTTP — wire a small HTTPS endpoint yourself (see `webhooks.py`).
+- **Not used**: BVN Resolution/Match and Phone (Truecaller) resolution — sensitive identity APIs with no role in shopping checkout.
+
 ## Disclosures (catalog rule 13)
 
-- **Third-party network calls**: `serpapi.com`, `api.paystack.co` (including refunds), `api.nowpayments.io`, `open.er-api.com`, `ipapi.co`, `nominatim.openstreetmap.org`.
-- **Data sent**: place name/coords to OpenStreetMap; search query to SerpAPI; customer email/amount/order id to Paystack; amount/coin/order id to NOWPayments.
-- **Local storage**: carts and locations in `state.json`; orders and tickets in `orders.sqlite` — never in the plugin tree.
-- **No** shell commands, background processes, reads outside the plugin's data, stored credentials or telemetry.
-- Payments and refunds need explicit user confirmation (`confirm=true`).
+- **Third-party network calls**: `serpapi.com`, `api.paystack.co` (initialize, verify, charge_authorization, refund, bank list/resolve, transferrecipient, transfer, decision/bin, webhooks), `api.nowpayments.io`, `open.er-api.com`, `ipapi.co`, `nominatim.openstreetmap.org`.
+- **Data sent**: place name/coords to OpenStreetMap; search query to SerpAPI; customer email/amount/order id/card authorization code (never PAN) to Paystack; NUBAN + bank code when bank-transfer refunds are enabled; amount/coin/order id to NOWPayments.
+- **Local storage**: carts and locations in `state.json`; orders, tickets, saved-card authorizations (last4/brand/bank + authorization_code) and transfer records in `orders.sqlite` — never in the plugin tree.
+- **No** shell commands, background processes, reads outside the plugin's data, or BVN/phone identity lookups.
+- Payments, saved-card charges, refunds and bank transfers need explicit user confirmation (`confirm=true`). Transfers also need `SHOPMATE_ALLOW_TRANSFERS=1`.
 
 ## Changelog
+
+### 0.5.0
+
+- Paystack verify before marking paid (amount/currency match); store reusable authorizations
+- Saved-card checkout via charge_authorization; `saved_cards` list/remove + optional BIN lookup
+- Opt-in NGN bank-transfer refunds (resolve account → confirm name → transfer with idempotent ref)
+- Webhook helper (`webhooks.verify_and_handle`) for charge.success / transfer.* / refund.processed
+- Explicitly skips BVN and phone identity APIs
 
 ### 0.4.2
 

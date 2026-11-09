@@ -126,8 +126,10 @@ DELIVERY_QUOTE = {
 
 PAYMENT_OPTIONS = {
     "name": "payment_options",
-    "description": "List enabled payment methods: Paystack local currencies and crypto coins.",
-    "parameters": {"type": "object", "properties": {}},
+    "description": "List enabled payment methods: Paystack, saved cards (pass email), crypto, and whether bank transfers are enabled.",
+    "parameters": {"type": "object", "properties": {
+        "email": {"type": "string", "description": "Customer email — returns any reusable saved cards for that address"},
+    }},
 }
 
 CHECKOUT = {
@@ -147,7 +149,8 @@ CHECKOUT = {
         "delivery_method": {"type": "string", "enum": ["doorstep", "pickup"], "description": "Doorstep (default) or collect at a pickup stop (cheaper)"},
         "pickup_stop_id": {"type": "string", "description": "Pickup stop id; defaults to the nearest"},
         "speed": {"type": "string", "enum": ["standard", "express"]},
-        "payment_method": {"type": "string", "enum": ["paystack", "crypto"], "description": "Default paystack"},
+        "payment_method": {"type": "string", "enum": ["paystack", "saved_card", "crypto"], "description": "Default paystack; saved_card charges a reusable authorization"},
+        "card_id": {"type": "string", "description": "For saved_card: id from payment_options/saved_cards (signature)"},
         "currency": {"type": "string", "description": "Paystack currency: NGN, GHS, KES, ZAR, USD, XOF, EGP or RWF (default: cart currency)"},
         "crypto_coin": {"type": "string", "description": "For crypto: usdt, usdc, btc, eth, sol, bnb, trx, ltc (default usdt on TRC20)"},
         "confirm": {"type": "boolean", "description": "true only after the user approved the summary"},
@@ -158,8 +161,9 @@ ORDER_STATUS = {
     "name": "order_status",
     "description": (
         "Look up orders instantly by order_id, customer email, phone, or (with no args) this conversation's recent "
-        "orders. Uses an indexed store — fast even with thousands of orders. Does NOT call the payment provider "
-        "unless refresh=true (or you fetch one pending order by id). Always show each item's image."
+        "orders. With refresh=true (or a single pending order by id) verifies via Paystack GET /transaction/verify "
+        "and marks paid only when amount+currency match; reusable card authorizations are saved (last4/brand only). "
+        "Always show each item's image."
     ),
     "parameters": {"type": "object", "properties": {
         "order_id": {"type": "string"},
@@ -173,16 +177,36 @@ ORDER_STATUS = {
 REQUEST_REFUND = {
     "name": "request_refund",
     "description": (
-        "Request a refund for a paid order that is not yet delivered (14-day window). First call WITHOUT confirm to "
-        "preview, then confirm=true after the customer agrees. Paystack refunds via the Refund API; crypto refunds "
-        "are recorded for manual payout to payout_address (never auto-sent). Never double-refund."
+        "Refund a paid, not-yet-delivered order (14-day window). Preview without confirm, then confirm=true. "
+        "refund_method=paystack (default card refund API), bank_transfer (NGN payout via Transfers — requires "
+        "SHOPMATE_ALLOW_TRANSFERS=1; always show the resolved account_name before confirm), or crypto (manual "
+        "payout_address). Amount capped at the paid total. Never double-refund; bank transfers use an idempotent reference."
     ),
     "parameters": {"type": "object", "properties": {
         "order_id": {"type": "string"},
         "reason": {"type": "string", "description": "Why the customer wants a refund"},
+        "refund_method": {"type": "string", "enum": ["paystack", "bank_transfer", "crypto"]},
+        "amount": {"type": "number", "description": "Optional partial refund; defaults to full paid amount"},
+        "bank_code": {"type": "string", "description": "For bank_transfer: Paystack bank code from the bank list"},
+        "account_number": {"type": "string", "description": "For bank_transfer: NUBAN account number"},
+        "account_name": {"type": "string", "description": "For bank_transfer confirm: must match the resolved name"},
         "payout_address": {"type": "string", "description": "Required for crypto: wallet address to receive the refund"},
         "confirm": {"type": "boolean", "description": "true only after the customer approved the refund summary"},
     }, "required": ["order_id", "reason"]},
+}
+
+SAVED_CARDS = {
+    "name": "saved_cards",
+    "description": (
+        "List or remove reusable Paystack cards for a customer email (last4/brand/bank only — never full PAN). "
+        "action=bin optionally enriches a card via Card BIN resolution. BVN and phone resolution are not used."
+    ),
+    "parameters": {"type": "object", "properties": {
+        "email": {"type": "string"},
+        "action": {"type": "string", "enum": ["list", "remove", "bin"], "description": "Default list"},
+        "card_id": {"type": "string", "description": "Required for remove/bin"},
+        "bin": {"type": "string", "description": "Optional 6-digit BIN for action=bin"},
+    }, "required": ["email"]},
 }
 
 CONTACT_SUPPORT = {

@@ -1,7 +1,7 @@
 ---
 name: shopping
 description: Find, price, deliver and sell products in chat.
-version: 0.4.2
+version: 0.5.0
 author: DaveTech2
 license: MIT
 metadata:
@@ -54,16 +54,20 @@ with real photos and prices**, then choose one before anything is added to the c
 8. **Verify and hand over.** Never say "paid" until `order_status` says `paid`. Then confirm the order number,
    the delivery address and the ETA.
 
-## Orders, refunds and support
+## Orders, refunds, saved cards and support
 
-- **Where is my order?** Call `order_status` with the order id, or the customer's email/phone, or with no args for
-  this chat's recent orders. Lookups are indexed and instant — do not stall. Pass `refresh=true` only when you
-  need to re-check payment with the provider.
-- **Refunds.** Paid, not-yet-delivered orders within 14 days: `request_refund` without `confirm` → show summary →
-  `confirm=true`. Crypto refunds need `payout_address` (manual payout; never auto-sent). Never double-refund.
-- **Support.** `contact_support` with `action=faq` for delivery/payment/refund answers; `action=open` for a ticket
-  (missing / damaged / late / wrong_item / payment / other) tied to an order; `action=status` to check a ticket.
-  Share any `operator_contact` (email / WhatsApp) returned.
+- **Where is my order?** Call `order_status` with the order id, email/phone, or no args for this chat. Pass
+  `refresh=true` to verify with Paystack (`GET /transaction/verify`) — paid only when amount and currency match.
+- **Saved cards.** After a successful card payment, reusable authorizations are stored (last4/brand only).
+  `payment_options` with the customer email (or `saved_cards`) lists them. To charge one: checkout with
+  `payment_method=saved_card` and `card_id`, show the summary ("pay with card ending 1234"), then `confirm=true`.
+  Customers can remove a card via `saved_cards` `action=remove`.
+- **Refunds.** Paid, not-yet-delivered, within 14 days: `request_refund` without `confirm` → show summary →
+  `confirm=true`. Methods: Paystack card refund (default), `bank_transfer` (NGN; only if transfers are enabled),
+  or crypto (`payout_address`, manual). **For bank transfers:** first response includes the resolved `account_name`
+  — always read that name and the amount back to the customer and get an explicit yes before `confirm=true`.
+  Never double-refund; transfer references are idempotent per order.
+- **Support.** `contact_support` FAQ / open ticket / status. Share any `operator_contact` returned.
 
 ## Bulk orders and multiple items
 
