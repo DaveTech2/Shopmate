@@ -77,6 +77,8 @@ def _connect() -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_tickets_conv ON tickets(conversation_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_tickets_email ON tickets(email);
         CREATE TABLE IF NOT EXISTS cards (
+            card_id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL DEFAULT '',
             email TEXT NOT NULL,
             signature TEXT NOT NULL,
             authorization_code TEXT NOT NULL,
@@ -90,7 +92,7 @@ def _connect() -> sqlite3.Connection:
             reusable INTEGER NOT NULL DEFAULT 1,
             created_at INTEGER NOT NULL,
             payload TEXT NOT NULL,
-            PRIMARY KEY (email, signature)
+            UNIQUE (conversation_id, email, signature)
         );
         CREATE INDEX IF NOT EXISTS idx_cards_email ON cards(email);
         CREATE TABLE IF NOT EXISTS transfers (
@@ -105,6 +107,8 @@ def _connect() -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_transfers_order ON transfers(order_id);
         """
     )
+    _migrate_cards_table(conn)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cards_conv ON cards(conversation_id, email)")
     return conn
 
 
@@ -116,6 +120,108 @@ def _norm_phone(s: str) -> str:
     digits = "".join(c for c in (s or "") if c.isdigit())
     # keep last 10 digits for matching local/intl variants
     return digits[-10:] if len(digits) >= 10 else digits
+
+
+
+def _new_card_id() -> str:
+    """Local opaque id. Never the Paystack authorization_code or signature."""
+    import secrets
+    return "card_" + secrets.token_hex(16)
+
+
+def _infer_card_conversation(conn: sqlite3.Connection, email: str, signature: str, authorization_code: str) -> str:
+    """Best-effort backfill: the conversation of an order that saved this authorization."""
+    rows = conn.execute(
+        "SELECT conversation_id, payload FROM orders WHERE email=? ORDER BY created_at DESC",
+        (email,),
+    ).fetchall()
+    for r in rows:
+        try:
+            order = json.loads(r["payload"])
+        except Exception:
+            continue
+        auth = order.get("authorization") or {}
+        if signature and auth.get("signature") == signature:
+            return str(order.get("conversation_id") or r["conversation_id"] or "")
+        if authorization_code and auth.get("authorization_code") == authorization_code:
+            return str(order.get("conversation_id") or r["conversation_id"] or "")
+    return ""
+
+
+def _migrate_cards_table(conn: sqlite3.Connection) -> None:
+    """Upgrade pre-0.5.1 cards rows: opaque card_id + conversation_id, no auth code as id."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(cards)").fetchall()}
+    if not cols:
+        return
+    if "card_id" in cols and "conversation_id" in cols:
+        return
+    conn.execute("ALTER TABLE cards RENAME TO cards_legacy")
+    conn.execute(
+        """
+        CREATE TABLE cards (
+            card_id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL DEFAULT '',
+            email TEXT NOT NULL,
+            signature TEXT NOT NULL,
+            authorization_code TEXT NOT NULL,
+            last4 TEXT,
+            brand TEXT,
+            bank TEXT,
+            bin TEXT,
+            exp_month TEXT,
+            exp_year TEXT,
+            card_type TEXT,
+            reusable INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            payload TEXT NOT NULL,
+            UNIQUE (conversation_id, email, signature)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cards_email ON cards(email)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cards_conv ON cards(conversation_id, email)")
+    legacy_cols = {r[1] for r in conn.execute("PRAGMA table_info(cards_legacy)").fetchall()}
+    rows = conn.execute("SELECT * FROM cards_legacy").fetchall()
+    for row in rows:
+        payload = {}
+        try:
+            payload = json.loads(row["payload"]) if row["payload"] else {}
+        except Exception:
+            payload = {}
+        email = row["email"]
+        signature = row["signature"]
+        auth_code = row["authorization_code"]
+        cid = ""
+        if "conversation_id" in legacy_cols:
+            cid = str(row["conversation_id"] or "")
+        cid = cid or str(payload.get("conversation_id") or "") or _infer_card_conversation(
+            conn, email, signature, auth_code
+        )
+        card_id = payload.get("card_id") if isinstance(payload.get("card_id"), str) else None
+        if not card_id or card_id in (auth_code, signature) or card_id.startswith("AUTH_"):
+            card_id = _new_card_id()
+        payload = dict(payload)
+        payload["card_id"] = card_id
+        payload["conversation_id"] = cid
+        # Keep authorization_code in the stored payload only — never as card_id.
+        conn.execute(
+            "INSERT OR REPLACE INTO cards(card_id,conversation_id,email,signature,authorization_code,last4,brand,bank,bin,"
+            "exp_month,exp_year,card_type,reusable,created_at,payload) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                card_id, cid, email, signature, auth_code,
+                row["last4"] if "last4" in legacy_cols else payload.get("last4"),
+                row["brand"] if "brand" in legacy_cols else payload.get("brand"),
+                row["bank"] if "bank" in legacy_cols else payload.get("bank"),
+                row["bin"] if "bin" in legacy_cols else payload.get("bin"),
+                row["exp_month"] if "exp_month" in legacy_cols else payload.get("exp_month"),
+                row["exp_year"] if "exp_year" in legacy_cols else payload.get("exp_year"),
+                row["card_type"] if "card_type" in legacy_cols else payload.get("card_type"),
+                int(row["reusable"]) if "reusable" in legacy_cols else 1,
+                int(row["created_at"]) if "created_at" in legacy_cols else int(time.time()),
+                json.dumps(payload, ensure_ascii=False),
+            ),
+        )
+    conn.execute("DROP TABLE cards_legacy")
 
 
 def _load() -> dict:
@@ -277,16 +383,30 @@ def find_orders(*, order_id: str = None, email: str = None, phone: str = None,
                 row = conn.execute("SELECT payload FROM orders WHERE order_id=?", (order_id.strip(),)).fetchone()
                 return [json.loads(row["payload"])] if row else []
             if email:
-                rows = conn.execute(
-                    "SELECT payload FROM orders WHERE email=? ORDER BY created_at DESC LIMIT ?",
-                    (_norm_email(email), limit),
-                ).fetchall()
+                if conversation_id is not None:
+                    rows = conn.execute(
+                        "SELECT payload FROM orders WHERE email=? AND conversation_id=? "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (_norm_email(email), str(conversation_id), limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT payload FROM orders WHERE email=? ORDER BY created_at DESC LIMIT ?",
+                        (_norm_email(email), limit),
+                    ).fetchall()
                 return [json.loads(r["payload"]) for r in rows]
             if phone:
-                rows = conn.execute(
-                    "SELECT payload FROM orders WHERE phone=? ORDER BY created_at DESC LIMIT ?",
-                    (_norm_phone(phone), limit),
-                ).fetchall()
+                if conversation_id is not None:
+                    rows = conn.execute(
+                        "SELECT payload FROM orders WHERE phone=? AND conversation_id=? "
+                        "ORDER BY created_at DESC LIMIT ?",
+                        (_norm_phone(phone), str(conversation_id), limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        "SELECT payload FROM orders WHERE phone=? ORDER BY created_at DESC LIMIT ?",
+                        (_norm_phone(phone), limit),
+                    ).fetchall()
                 return [json.loads(r["payload"]) for r in rows]
             if conversation_id is not None:
                 rows = conn.execute(
@@ -382,24 +502,45 @@ def find_tickets(*, ticket_id: str = None, order_id: str = None, conversation_id
 
 # ---------- saved cards (Paystack reusable authorizations) ----------
 
-def save_card(email: str, auth: dict) -> dict | None:
-    """Upsert a reusable authorization keyed by email+signature (or auth code)."""
+def save_card(email: str, auth: dict, conversation_id: str = None) -> dict | None:
+    """Upsert a reusable authorization bound to the conversation that paid.
+
+    card_id is a local opaque id. The Paystack authorization_code is stored
+    in orders.sqlite but is never returned as card_id.
+    """
     email_n = _norm_email(email)
-    if not email_n or not auth or not auth.get("authorization_code"):
+    cid = str(conversation_id or "").strip()
+    if not email_n or not cid or not auth or not auth.get("authorization_code"):
         return None
     if auth.get("reusable") is False:
         return None
     sig = auth.get("signature") or auth.get("authorization_code")
-    payload = dict(auth)
     with _LOCK:
         conn = _connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT card_id, payload FROM cards WHERE conversation_id=? AND email=? AND signature=?",
+                (cid, email_n, sig),
+            ).fetchone()
+            if existing:
+                card_id = existing["card_id"]
+                try:
+                    prev = json.loads(existing["payload"]) if existing["payload"] else {}
+                except Exception:
+                    prev = {}
+            else:
+                card_id = _new_card_id()
+                prev = {}
+            payload = dict(prev)
+            payload.update(auth)
+            payload["card_id"] = card_id
+            payload["conversation_id"] = cid
             conn.execute(
-                "INSERT OR REPLACE INTO cards(email,signature,authorization_code,last4,brand,bank,bin,"
-                "exp_month,exp_year,card_type,reusable,created_at,payload) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO cards(card_id,conversation_id,email,signature,authorization_code,last4,brand,bank,bin,"
+                "exp_month,exp_year,card_type,reusable,created_at,payload) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    email_n, sig, auth["authorization_code"],
+                    card_id, cid, email_n, sig, auth["authorization_code"],
                     auth.get("last4"), auth.get("brand"), auth.get("bank"), auth.get("bin"),
                     auth.get("exp_month"), auth.get("exp_year"), auth.get("card_type"),
                     1 if auth.get("reusable", True) else 0,
@@ -416,9 +557,14 @@ def save_card(email: str, auth: dict) -> dict | None:
 
 
 def public_card(auth: dict) -> dict:
-    """Customer-facing card view — never includes authorization_code."""
+    """Customer-facing card view — never includes authorization_code or signature."""
+    auth = auth or {}
+    card_id = auth.get("card_id")
+    # Never fall back to the Paystack authorization_code (or signature) as card_id.
+    if not isinstance(card_id, str) or not card_id or card_id == auth.get("authorization_code") or card_id == auth.get("signature"):
+        card_id = None
     return {
-        "card_id": auth.get("signature") or auth.get("authorization_code"),
+        "card_id": card_id,
         "last4": auth.get("last4"),
         "brand": auth.get("brand"),
         "bank": auth.get("bank"),
@@ -430,50 +576,69 @@ def public_card(auth: dict) -> dict:
     }
 
 
-def list_cards(email: str) -> list:
+def list_cards(email: str, conversation_id: str = None) -> list:
+    """List reusable cards for this email that belong to the calling conversation."""
     email_n = _norm_email(email)
-    if not email_n:
+    cid = str(conversation_id or "").strip()
+    if not email_n or not cid:
         return []
     with _LOCK:
         conn = _connect()
         try:
             rows = conn.execute(
-                "SELECT payload FROM cards WHERE email=? AND reusable=1 ORDER BY created_at DESC",
-                (email_n,),
+                "SELECT card_id, conversation_id, payload FROM cards "
+                "WHERE email=? AND conversation_id=? AND reusable=1 ORDER BY created_at DESC",
+                (email_n, cid),
             ).fetchall()
-            return [public_card(json.loads(r["payload"])) for r in rows]
+            out = []
+            for r in rows:
+                payload = json.loads(r["payload"])
+                payload["card_id"] = r["card_id"]
+                payload["conversation_id"] = r["conversation_id"]
+                out.append(public_card(payload))
+            return out
         finally:
             conn.close()
 
 
-def get_card(email: str, card_id: str) -> dict | None:
-    """Return full auth payload (incl. authorization_code) for charging."""
+def get_card(email: str, card_id: str, conversation_id: str = None) -> dict | None:
+    """Return full auth payload (incl. authorization_code) for charging, if it belongs to this conversation.
+
+    Lookup is by the local opaque card_id only — never by authorization_code.
+    """
     email_n = _norm_email(email)
-    if not email_n or not card_id:
+    cid = str(conversation_id or "").strip()
+    if not email_n or not cid or not card_id:
+        return None
+    # Refuse lookups that use a Paystack authorization_code as card_id.
+    if str(card_id).startswith("AUTH_"):
         return None
     with _LOCK:
         conn = _connect()
         try:
             row = conn.execute(
-                "SELECT payload FROM cards WHERE email=? AND (signature=? OR authorization_code=?)",
-                (email_n, card_id, card_id),
+                "SELECT payload FROM cards WHERE card_id=? AND email=? AND conversation_id=?",
+                (card_id, email_n, cid),
             ).fetchone()
             return json.loads(row["payload"]) if row else None
         finally:
             conn.close()
 
 
-def remove_card(email: str, card_id: str) -> bool:
+def remove_card(email: str, card_id: str, conversation_id: str = None) -> bool:
     email_n = _norm_email(email)
-    if not email_n or not card_id:
+    cid = str(conversation_id or "").strip()
+    if not email_n or not cid or not card_id:
+        return False
+    if str(card_id).startswith("AUTH_"):
         return False
     with _LOCK:
         conn = _connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             cur = conn.execute(
-                "DELETE FROM cards WHERE email=? AND (signature=? OR authorization_code=?)",
-                (email_n, card_id, card_id),
+                "DELETE FROM cards WHERE card_id=? AND email=? AND conversation_id=?",
+                (card_id, email_n, cid),
             )
             conn.execute("COMMIT")
             return cur.rowcount > 0

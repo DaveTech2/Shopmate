@@ -195,11 +195,14 @@ importlib.import_module(ROOT.name + ".geo").time.sleep = lambda s: None
 
 class Ctx:
     def __init__(self):
-        self.tools, self.skills = {}, {}
+        self.tools, self.skills, self.hooks = {}, {}, {}
 
     def register_tool(self, name, toolset, schema, handler, **kw):
         assert schema["name"] == name
         self.tools[name] = handler
+
+    def register_hook(self, name, fn, **kw):
+        self.hooks.setdefault(name, []).append(fn)
 
     def get_config(self, key, default=None):
         return SETTINGS.get(key, default)
@@ -218,8 +221,12 @@ ctx = Ctx(); pkg.register(ctx)
 import yaml
 manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text())
 assert sorted(manifest["provides_tools"]) == sorted(ctx.tools), "manifest/tools mismatch"
+assert manifest.get("provides_hooks") == ["pre_tool_call"]
+assert "pre_tool_call" in ctx.hooks and tools.pre_tool_call in ctx.hooks["pre_tool_call"]
 assert "shopping" in ctx.skills and ":" not in "shopping"
 assert len(ctx.tools) == 17
+assert "config_schema" in manifest and "allow_transfers" in manifest["config_schema"]
+assert "allow_cross_conversation_lookup" in manifest["config_schema"]
 
 # --- demo mode (no keys)
 r = call(ctx, "shop_categories"); assert len(r["categories"]) == 24 and r["live_search"] is False
@@ -447,9 +454,14 @@ assert s["payment_status"] == "pending", s
 PAID["paystack"] = True
 s = call(ctx, "order_status", order_id=oid_v, refresh=True, conv="v5")
 assert s["payment_status"] == "paid" and s.get("card", {}).get("last4") == "4081", s
-cards = call(ctx, "saved_cards", email="ada@example.com")
+cards = call(ctx, "saved_cards", email="ada@example.com", conv="v5")
 assert cards["count"] >= 1 and cards["cards"][0]["last4"] == "4081", cards
 assert "authorization_code" not in cards["cards"][0]
+assert "signature" not in cards["cards"][0]
+card_id = cards["cards"][0]["card_id"]
+assert card_id and card_id.startswith("card_") and "AUTH_" not in card_id, cards
+# email alone from another conversation is not enough
+assert call(ctx, "saved_cards", email="ada@example.com", conv="stranger")["count"] == 0
 
 # amount mismatch must NOT mark paid
 call(ctx, "cart_add", product_id=live_pid, conv="v5m")
@@ -462,80 +474,108 @@ s = call(ctx, "order_status", order_id=oid_m, refresh=True, conv="v5m")
 assert s["payment_status"] != "paid", s
 VERIFY["mismatch"] = False
 
-# --- charge authorization (saved card)
-card_id = cards["cards"][0]["card_id"]
+# --- charge authorization (saved card) — same conversation that paid
+# typing the email in another conversation must not charge this card
 call(ctx, "cart_clear", conv="v5c")
 call(ctx, "set_location", city="Lekki Phase 1", conv="v5c")
 call(ctx, "cart_add", product_id=live_pid, conv="v5c")
+r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
+         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, confirm=True, conv="v5c")
+assert "error" in r and "conversation" in r["error"].lower(), r
+
+call(ctx, "cart_clear", conv="v5")
+call(ctx, "set_location", city="Lekki Phase 1", conv="v5")
+call(ctx, "cart_add", product_id=live_pid, conv="v5")
 # preview
 r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
-         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, conv="v5c")
+         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, conv="v5")
 assert r["status"] == "needs_confirmation" and "4081" in r["summary"]["pay_with"], r
 assert r["summary"].get("card", {}).get("last4") == "4081"
+assert r["summary"].get("card", {}).get("card_id") == card_id
+assert "authorization_code" not in (r["summary"].get("card") or {})
 # confirm charge
 PAID["paystack"] = True
 r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
-         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, confirm=True, conv="v5c")
+         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, confirm=True, conv="v5")
 assert r["status"] == "paid", r
 assert any(isinstance(c, tuple) and c[0] == "charge_auth" for c in CALLS)
+# charged body must send the auth code to Paystack, but the tool result must not echo it
+charge_bodies = [c[1] for c in CALLS if isinstance(c, tuple) and c[0] == "charge_auth"]
+assert charge_bodies and charge_bodies[-1]["authorization_code"].startswith("AUTH_")
+assert "authorization_code" not in r
+assert (r.get("card") or {}).get("card_id") == card_id
 
-# charge amount mismatch
+# charge amount mismatch (same conversation, card still present)
 CHARGE["mismatch"] = True
-call(ctx, "cart_add", product_id=live_pid, conv="v5cm")
+call(ctx, "cart_add", product_id=live_pid, conv="v5")
 r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011112222",
-         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, confirm=True, conv="v5cm")
+         address="1 Rd", city="Lekki", payment_method="saved_card", card_id=card_id, confirm=True, conv="v5")
 assert r["status"] != "paid", r
 CHARGE["mismatch"] = False
 
-# remove card
-rm = call(ctx, "saved_cards", email="ada@example.com", action="remove", card_id=card_id)
+# remove card — only from the owning conversation
+assert call(ctx, "saved_cards", email="ada@example.com", action="remove", card_id=card_id, conv="stranger").get("error")
+rm = call(ctx, "saved_cards", email="ada@example.com", action="remove", card_id=card_id, conv="v5")
 assert rm["removed"] is True
-left = call(ctx, "saved_cards", email="ada@example.com")
+left = call(ctx, "saved_cards", email="ada@example.com", conv="v5")
 assert all(c["card_id"] != card_id for c in left["cards"]), left
 
 # missing keys for saved card
 SECRETS.pop("PAYSTACK_SECRET_KEY", None)
 # re-save a card manually for structure
-store.save_card("bob@example.com", {"authorization_code": "AUTH_x", "reusable": True, "signature": "SIG_bob",
-                                    "last4": "4242", "brand": "visa", "bin": "408408"})
+bob_pub = store.save_card("bob@example.com", {"authorization_code": "AUTH_x", "reusable": True, "signature": "SIG_bob",
+                                    "last4": "4242", "brand": "visa", "bin": "408408"}, conversation_id="v5nk")
+bob_card_id = bob_pub["card_id"]
+assert bob_card_id.startswith("card_") and bob_card_id != "AUTH_x" and bob_card_id != "SIG_bob"
 call(ctx, "cart_add", product_id=live_pid, conv="v5nk")
 call(ctx, "set_location", city="Lekki", conv="v5nk")
 r = call(ctx, "checkout", full_name="Bob", email="bob@example.com", phone="080", address="1 Rd", city="Lekki",
-         payment_method="saved_card", card_id="SIG_bob", confirm=True, conv="v5nk")
+         payment_method="saved_card", card_id=bob_card_id, confirm=True, conv="v5nk")
 assert "not configured" in r.get("error", ""), r
+# authorization_code must not work as card_id
+r = call(ctx, "checkout", full_name="Bob", email="bob@example.com", phone="080", address="1 Rd", city="Lekki",
+         payment_method="saved_card", card_id="AUTH_x", confirm=True, conv="v5nk")
+assert "error" in r, r
 SECRETS["PAYSTACK_SECRET_KEY"] = "sk_test_x"
 
-# --- bank transfer refunds (opt-in)
-import os
-os.environ.pop("SHOPMATE_ALLOW_TRANSFERS", None)
+# --- bank transfer refunds (opt-in plugin setting, not env)
+SETTINGS.pop("allow_transfers", None)
 # need a paid order
 store.save_card("ada@example.com", {"authorization_code": "AUTH_uh8bcl3zbn", "reusable": True,
-                                    "signature": "SIG_yEXu7dLBeqG0kU7g95Ke", "last4": "4081", "brand": "visa", "bin": "408408"})
-# use existing paid oid_v
-r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
-         bank_code="058", account_number="0123456789")
-assert "disabled" in r.get("error", "").lower() or "SHOPMATE_ALLOW_TRANSFERS" in r.get("error", ""), r
-
+                                    "signature": "SIG_yEXu7dLBeqG0kU7g95Ke", "last4": "4081", "brand": "visa", "bin": "408408"},
+                conversation_id="v5")
+# use existing paid oid_v — env var must no longer enable transfers
+import os
 os.environ["SHOPMATE_ALLOW_TRANSFERS"] = "1"
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789", conv="v5")
+assert "disabled" in r.get("error", "").lower() or "allow_transfers" in r.get("error", ""), r
+os.environ.pop("SHOPMATE_ALLOW_TRANSFERS", None)
+
+SETTINGS["allow_transfers"] = True
 # without bank details → bank list
-r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer")
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer", conv="v5")
 assert "bank_code" in r.get("error", "") and r.get("banks"), r
 # resolve preview
 r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
-         bank_code="058", account_number="0123456789")
+         bank_code="058", account_number="0123456789", conv="v5")
 assert r["status"] == "needs_confirmation" and r["summary"]["account_name"] == "ADA OBI", r
+# confirm without account_name is rejected
+r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
+         bank_code="058", account_number="0123456789", confirm=True, conv="v5")
+assert "account_name" in r.get("error", "").lower() and "required" in r.get("error", "").lower(), r
 # wrong confirmed name
 r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
-         bank_code="058", account_number="0123456789", account_name="WRONG PERSON", confirm=True)
+         bank_code="058", account_number="0123456789", account_name="WRONG PERSON", confirm=True, conv="v5")
 assert "does not match" in r.get("error", ""), r
 # success transfer
 TRANSFER["status"] = "success"
 r = call(ctx, "request_refund", order_id=oid_v, reason="want bank", refund_method="bank_transfer",
-         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True)
+         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True, conv="v5")
 assert r["status"] == "refunded" and r["account_name"] == "ADA OBI", r
 # duplicate blocked
 r = call(ctx, "request_refund", order_id=oid_v, reason="again", refund_method="bank_transfer",
-         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True)
+         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True, conv="v5")
 assert "already" in r.get("error", "").lower(), r
 
 # amount cap
@@ -549,7 +589,7 @@ oid_cap = r["order_id"]
 call(ctx, "order_status", order_id=oid_cap, refresh=True, conv="v5cap")
 order_cap = store.get_order(oid_cap)
 r = call(ctx, "request_refund", order_id=oid_cap, reason="too much", refund_method="bank_transfer",
-         bank_code="058", account_number="0123456789", amount=float(order_cap["charge"]) + 1000, confirm=True)
+         bank_code="058", account_number="0123456789", amount=float(order_cap["charge"]) + 1000, confirm=True, conv="v5cap")
 assert "paid amount" in r.get("error", "").lower() or "must be" in r.get("error", "").lower(), r
 
 # transfer initiate failure
@@ -560,10 +600,10 @@ r = call(ctx, "checkout", full_name="Ada", email="ada@example.com", phone="08011
 oid_tf = r["order_id"]; call(ctx, "order_status", order_id=oid_tf, refresh=True, conv="v5tf")
 TRANSFER["fail"] = True
 r = call(ctx, "request_refund", order_id=oid_tf, reason="bank", refund_method="bank_transfer",
-         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True)
+         bank_code="058", account_number="0123456789", account_name="ADA OBI", confirm=True, conv="v5tf")
 assert "failed" in r.get("error", "").lower(), r
 TRANSFER["fail"] = False
-os.environ.pop("SHOPMATE_ALLOW_TRANSFERS", None)
+SETTINGS.pop("allow_transfers", None)
 
 # --- webhooks
 # rebuild a pending order then charge.success webhook
@@ -587,7 +627,10 @@ assert bad["ok"] is False
 good = webhooks.verify_and_handle(body, sig, "sk_test_x")
 assert good["ok"] and good.get("payment_status") == "paid", good
 assert store.get_order(oid_wh)["payment_status"] == "paid"
-assert store.list_cards("wh@example.com")[0]["last4"] == "1111"
+wh_cards = store.list_cards("wh@example.com", conversation_id="v5wh")
+assert wh_cards[0]["last4"] == "1111"
+assert wh_cards[0]["card_id"].startswith("card_") and wh_cards[0]["card_id"] != "AUTH_wh"
+assert store.list_cards("wh@example.com", conversation_id="other") == []
 
 # transfer.success webhook
 tr_ref = "SM-TRF-" + oid_wh
@@ -609,9 +652,119 @@ assert store.get_order(oid_rp)["payment_status"] == "refunded"
 
 # BIN helper
 SECRETS["PAYSTACK_SECRET_KEY"] = "sk_test_x"
-store.save_card("bin@example.com", {"authorization_code": "AUTH_b", "reusable": True, "signature": "SIG_b",
-                                    "last4": "9988", "brand": "visa", "bin": "408408"})
-b = call(ctx, "saved_cards", email="bin@example.com", action="bin", card_id="SIG_b")
+bin_pub = store.save_card("bin@example.com", {"authorization_code": "AUTH_b", "reusable": True, "signature": "SIG_b",
+                                    "last4": "9988", "brand": "visa", "bin": "408408"}, conversation_id="bin")
+b = call(ctx, "saved_cards", email="bin@example.com", action="bin", card_id=bin_pub["card_id"], conv="bin")
 assert b.get("bin", {}).get("brand"), b
+assert "authorization_code" not in (b.get("card") or {})
+
+# ========== v0.5.1 review fixes ==========
+# Hook: approve directive for saved_card + confirm, and for all refund confirms
+hook = tools.pre_tool_call
+appr = hook("checkout", {"payment_method": "saved_card", "confirm": True, "card_id": "card_abc"})
+assert isinstance(appr, dict) and appr.get("action") == "approve" and appr.get("rule_key") == "shopmate.checkout.saved_card", appr
+assert "message" in appr
+assert hook("checkout", {"payment_method": "saved_card"}) is None  # preview: no approval yet
+assert hook("checkout", {"payment_method": "paystack", "confirm": True}) is None
+assert hook("checkout", {"payment_method": "saved_card", "confirm": "true"}) is None  # confirm must be bool True
+for method in ("paystack", "bank_transfer", "crypto"):
+    appr = hook("request_refund", {"confirm": True, "refund_method": method, "order_id": "SM-X"})
+    assert isinstance(appr, dict) and appr["action"] == "approve" and appr["rule_key"] == "shopmate.request_refund", (method, appr)
+assert hook("request_refund", {"refund_method": "paystack", "order_id": "SM-X"}) is None
+
+# Cross-conversation refund is refused (even with confirm and the right email)
+SETTINGS["allow_transfers"] = True
+# oid_cap was paid in v5cap and not refunded (amount cap failed)
+r = call(ctx, "request_refund", order_id=oid_cap, reason="steal", confirm=True, conv="stranger")
+assert "different conversation" in r.get("error", "").lower(), r
+# owner conversation can still preview
+r = call(ctx, "request_refund", order_id=oid_cap, reason="owner preview", conv="v5cap")
+assert r.get("status") == "needs_confirmation" or r.get("error"), r
+SETTINGS.pop("allow_transfers", None)
+
+# order_status email/phone scoped to this conversation (setting off by default)
+SETTINGS.pop("allow_cross_conversation_lookup", None)
+# c1 placed the first Paystack + crypto orders for ada@example.com
+scoped = call(ctx, "order_status", email="ada@example.com", conv="stranger")
+assert scoped["count"] == 0, scoped
+scoped_phone = call(ctx, "order_status", phone="08011112222", conv="stranger")
+assert scoped_phone["count"] == 0, scoped_phone
+mine_email = call(ctx, "order_status", email="ada@example.com", conv="c1")
+assert mine_email["count"] >= 1, mine_email
+# operator can opt in
+SETTINGS["allow_cross_conversation_lookup"] = True
+cross = call(ctx, "order_status", email="ada@example.com", conv="stranger")
+assert cross["count"] >= 1, cross
+SETTINGS.pop("allow_cross_conversation_lookup", None)
+
+# Opaque card_id migration of pre-0.5.1 rows
+import sqlite3, json as _json
+store._reset_paths_for_tests()
+# Re-point at a fresh dir, build a legacy cards table, then open via store.
+legacy_dir = tempfile.mkdtemp()
+os.environ["SHOPMATE_TEST_DATA"] = legacy_dir
+store._reset_paths_for_tests()
+db = Path(legacy_dir) / "shopmate" / "orders.sqlite"
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(str(db))
+conn.executescript("""
+    CREATE TABLE orders (
+        order_id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        email TEXT NOT NULL DEFAULT '',
+        phone TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL,
+        payment_status TEXT NOT NULL,
+        delivery_status TEXT NOT NULL,
+        payload TEXT NOT NULL
+    );
+    CREATE TABLE cards (
+        email TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        authorization_code TEXT NOT NULL,
+        last4 TEXT,
+        brand TEXT,
+        bank TEXT,
+        bin TEXT,
+        exp_month TEXT,
+        exp_year TEXT,
+        card_type TEXT,
+        reusable INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        payload TEXT NOT NULL,
+        PRIMARY KEY (email, signature)
+    );
+""")
+legacy_auth = {"authorization_code": "AUTH_legacy", "reusable": True, "signature": "SIG_legacy",
+               "last4": "2222", "brand": "visa", "bank": "TEST", "bin": "408408"}
+order_payload = {"order_id": "SM-LEGACY-1", "conversation_id": "legacy-chat",
+                 "customer": {"email": "legacy@example.com"}, "authorization": legacy_auth,
+                 "payment_status": "paid", "delivery_status": "processing", "created_at": int(time.time())}
+conn.execute(
+    "INSERT INTO orders(order_id,conversation_id,email,phone,created_at,payment_status,delivery_status,payload) VALUES(?,?,?,?,?,?,?,?)",
+    ("SM-LEGACY-1", "legacy-chat", "legacy@example.com", "08011110000", int(time.time()), "paid", "processing",
+     _json.dumps(order_payload)),
+)
+conn.execute(
+    "INSERT INTO cards(email,signature,authorization_code,last4,brand,bank,bin,exp_month,exp_year,card_type,reusable,created_at,payload) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    ("legacy@example.com", "SIG_legacy", "AUTH_legacy", "2222", "visa", "TEST", "408408", "12", "2030", "visa", 1,
+     int(time.time()), _json.dumps(legacy_auth)),
+)
+conn.commit(); conn.close()
+migrated = store.list_cards("legacy@example.com", conversation_id="legacy-chat")
+assert len(migrated) == 1, migrated
+assert migrated[0]["last4"] == "2222"
+assert migrated[0]["card_id"] and migrated[0]["card_id"].startswith("card_")
+assert migrated[0]["card_id"] not in ("AUTH_legacy", "SIG_legacy")
+assert "authorization_code" not in migrated[0]
+# backfilled conversation: other chats cannot use the legacy card
+assert store.list_cards("legacy@example.com", conversation_id="other") == []
+assert store.get_card("legacy@example.com", "AUTH_legacy", conversation_id="legacy-chat") is None
+full = store.get_card("legacy@example.com", migrated[0]["card_id"], conversation_id="legacy-chat")
+assert full and full["authorization_code"] == "AUTH_legacy"
+# skill still has the licensed-pharmacy line
+skill = (ROOT / "skills" / "shopping" / "SKILL.md").read_text()
+assert "licensed pharmacy" in skill
+assert manifest["version"] == "0.5.1"
 
 print("ALL TESTS PASSED (%d tools)" % len(ctx.tools))

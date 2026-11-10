@@ -1,5 +1,5 @@
 name: shopmate
-version: "0.5.0"
+version: "0.5.1"
 manifest_version: 2
 api_version: 1
 description: >-
@@ -30,6 +30,23 @@ provides_tools:
   - request_refund
   - saved_cards
   - contact_support
+provides_hooks:
+  - pre_tool_call
+# All settings are optional. Without the keys Shopmate runs on its labelled demo catalog and
+# refuses to take payment. Secrets live in .env and are read through agent.secret_scope;
+# the rest live in config.yaml under plugins.entries.shopmate.settings.
+config_schema:
+  serpapi_key: {type: secret, env: SERPAPI_API_KEY, label: "SerpAPI key", description: "Live Google Shopping prices and photos (https://serpapi.com/manage-api-key)"}
+  paystack_key: {type: secret, env: PAYSTACK_SECRET_KEY, label: "Paystack secret key", description: "sk_test_… or sk_live_… for checkout links (Paystack dashboard → Settings → API Keys)"}
+  nowpayments_key: {type: secret, env: NOWPAYMENTS_API_KEY, label: "NOWPayments API key", description: "Crypto checkout — USDT, USDC, BTC, ETH, SOL… (https://account.nowpayments.io)"}
+  origin: {type: str, default: "lagos", label: "Dispatch city", description: "City or address you ship from; delivery fees are calculated from here"}
+  abroad: {type: str, choices: [local, ship], default: local, label: "Customers abroad", description: "local = served by merchants in their own city; ship = ship internationally from your dispatch city"}
+  auto_locate: {type: bool, default: true, label: "Detect location automatically", description: "Use the network's approximate location (city level, via ipapi.co) when the customer hasn't shared one. Turn off if other people message this Hermes from elsewhere."}
+  fallback_country: {type: str, default: "ng", label: "Fallback search country", description: "Google Shopping country used when the customer's country has no results"}
+  support_email: {type: str, default: "", label: "Support email", description: "Shown on support tickets when SUPPORT_EMAIL is unset"}
+  support_whatsapp: {type: str, default: "", label: "Support WhatsApp", description: "Shown on support tickets when SUPPORT_WHATSAPP is unset"}
+  allow_transfers: {type: bool, default: false, label: "Allow NGN bank-transfer refunds", description: "When on, request_refund can pay out from the store's Paystack balance to a NUBAN. Off by default because it moves operator funds."}
+  allow_cross_conversation_lookup: {type: bool, default: false, label: "Allow cross-conversation order lookup", description: "When off (default), order_status email/phone lookup only returns orders from the current conversation."}
 optional_env:
   - name: SERPAPI_API_KEY
     description: "SerpAPI key for live prices and photos"
@@ -45,7 +62,4 @@ optional_env:
     password: false
   - name: SUPPORT_WHATSAPP
     description: "Optional operator WhatsApp number shown on support tickets"
-    password: false
-  - name: SHOPMATE_ALLOW_TRANSFERS
-    description: "Set to 1 to allow NGN bank payouts via Paystack Transfers (moves operator balance)"
     password: false

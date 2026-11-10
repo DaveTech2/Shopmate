@@ -136,8 +136,9 @@ CHECKOUT = {
     "name": "checkout",
     "description": (
         "Place an order for the cart. First call WITHOUT confirm to get a summary (with product images), show it "
-        "to the user, and only call again with confirm=true after they explicitly agree. Returns a Paystack payment "
-        "link, or a crypto deposit address and exact amount. Never tell the user an order is paid until order_status says paid."
+        "to the user, and only call again with confirm=true after they explicitly agree. Saved-card charges also "
+        "require Hermes operator approval (pre_tool_call). Returns a Paystack payment "
+        "link, a saved-card charge result, or a crypto deposit address and exact amount. Never tell the user an order is paid until order_status says paid."
     ),
     "parameters": {"type": "object", "properties": {
         "full_name": {"type": "string"},
@@ -150,7 +151,7 @@ CHECKOUT = {
         "pickup_stop_id": {"type": "string", "description": "Pickup stop id; defaults to the nearest"},
         "speed": {"type": "string", "enum": ["standard", "express"]},
         "payment_method": {"type": "string", "enum": ["paystack", "saved_card", "crypto"], "description": "Default paystack; saved_card charges a reusable authorization"},
-        "card_id": {"type": "string", "description": "For saved_card: id from payment_options/saved_cards (signature)"},
+        "card_id": {"type": "string", "description": "For saved_card: opaque card_id from payment_options/saved_cards in this conversation"},
         "currency": {"type": "string", "description": "Paystack currency: NGN, GHS, KES, ZAR, USD, XOF, EGP or RWF (default: cart currency)"},
         "crypto_coin": {"type": "string", "description": "For crypto: usdt, usdc, btc, eth, sol, bnb, trx, ltc (default usdt on TRC20)"},
         "confirm": {"type": "boolean", "description": "true only after the user approved the summary"},
@@ -161,9 +162,10 @@ ORDER_STATUS = {
     "name": "order_status",
     "description": (
         "Look up orders instantly by order_id, customer email, phone, or (with no args) this conversation's recent "
-        "orders. With refresh=true (or a single pending order by id) verifies via Paystack GET /transaction/verify "
-        "and marks paid only when amount+currency match; reusable card authorizations are saved (last4/brand only). "
-        "Always show each item's image."
+        "orders. Email/phone lookup is limited to this conversation unless the operator enables "
+        "allow_cross_conversation_lookup. With refresh=true (or a single pending order by id) verifies via Paystack GET /transaction/verify "
+        "and marks paid only when amount+currency match; reusable card authorizations are saved (last4/brand only, "
+        "bound to this conversation). Always show each item's image."
     ),
     "parameters": {"type": "object", "properties": {
         "order_id": {"type": "string"},
@@ -177,9 +179,10 @@ ORDER_STATUS = {
 REQUEST_REFUND = {
     "name": "request_refund",
     "description": (
-        "Refund a paid, not-yet-delivered order (14-day window). Preview without confirm, then confirm=true. "
+        "Refund a paid, not-yet-delivered order from this conversation (14-day window). Preview without confirm, then confirm=true. "
+        "Hermes will ask the operator to approve the refund. "
         "refund_method=paystack (default card refund API), bank_transfer (NGN payout via Transfers — requires "
-        "SHOPMATE_ALLOW_TRANSFERS=1; always show the resolved account_name before confirm), or crypto (manual "
+        "allow_transfers=true in Settings; account_name is required on confirm and must match the resolved name), or crypto (manual "
         "payout_address). Amount capped at the paid total. Never double-refund; bank transfers use an idempotent reference."
     ),
     "parameters": {"type": "object", "properties": {
@@ -198,7 +201,8 @@ REQUEST_REFUND = {
 SAVED_CARDS = {
     "name": "saved_cards",
     "description": (
-        "List or remove reusable Paystack cards for a customer email (last4/brand/bank only — never full PAN). "
+        "List or remove reusable Paystack cards saved in this conversation (last4/brand/bank and a local opaque card_id — "
+        "never the authorization_code or full PAN). Cards from another conversation are not visible. "
         "action=bin optionally enriches a card via Card BIN resolution. BVN and phone resolution are not used."
     ),
     "parameters": {"type": "object", "properties": {

@@ -33,6 +33,41 @@ def _cid(kwargs) -> str:
     return str(kwargs.get("conversation_id") or kwargs.get("session_id") or "default")
 
 
+def _setting_bool(key, default=False) -> bool:
+    v = providers.setting(key, default)
+    if isinstance(v, bool):
+        return v
+    if v is None or v == "":
+        return bool(default)
+    return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
+def pre_tool_call(tool_name, args=None, **kwargs):
+    """Hermes pre_tool_call hook: escalate money-moving confirms to a real approval.
+
+    Returns ``{"action": "approve", "message", "rule_key"}`` so Hermes prompts the
+    operator. The model-set ``confirm`` flag alone is not a human approval.
+    """
+    args = args if isinstance(args, dict) else {}
+    if tool_name == "checkout" and str(args.get("payment_method") or "").lower() == "saved_card" and args.get("confirm") is True:
+        last4 = str(args.get("card_id") or "").strip()
+        return {
+            "action": "approve",
+            "message": "Shopmate will charge a saved card for this checkout (card_id %s). "
+                       "Approve only if you asked to pay this way." % (last4 or "unknown"),
+            "rule_key": "shopmate.checkout.saved_card",
+        }
+    if tool_name == "request_refund" and args.get("confirm") is True:
+        method = (args.get("refund_method") or "paystack").strip() or "paystack"
+        oid = (args.get("order_id") or "").strip() or "this order"
+        return {
+            "action": "approve",
+            "message": "Shopmate will issue a %s refund for %s. Approve only if you asked for this refund." % (method, oid),
+            "rule_key": "shopmate.request_refund",
+        }
+    return None
+
+
 SYMBOLS = {"NGN": "₦", "GHS": "GH₵", "KES": "KSh ", "ZAR": "R", "USD": "$", "XOF": "CFA ", "EGP": "E£", "RWF": "RF ", "GBP": "£"}
 
 
@@ -452,18 +487,20 @@ def delivery_quote(args, **kwargs):
 @safe
 def payment_options(args, **kwargs):
     email = (args.get("email") or "").strip()
-    cards = store.list_cards(email) if email else []
+    cid = _cid(kwargs)
+    cards = store.list_cards(email, conversation_id=cid) if email else []
     return _ok(
         paystack={"enabled": bool(providers.get_secret("PAYSTACK_SECRET_KEY")),
                   "currencies": sorted(payments.PAYSTACK_CURRENCIES),
                   "note": "Only currencies enabled on the store's Paystack account will work."},
         saved_cards={"enabled": bool(cards), "cards": cards,
-                     "note": "Pay with a saved card via payment_method=saved_card and card_id (confirm=true)."},
+                     "note": "Pay with a saved card via payment_method=saved_card and card_id. "
+                             "Hermes will ask you to approve the charge."},
         crypto={"enabled": bool(providers.get_secret("NOWPAYMENTS_API_KEY")),
                 "coins": sorted(payments.CRYPTO_COINS),
                 "note": "Priced in USD at the live rate, paid in the chosen coin."},
         bank_transfers={"enabled": _transfers_allowed(),
-                        "note": "NGN bank payouts/refunds require SHOPMATE_ALLOW_TRANSFERS=1 (moves operator funds)."})
+                        "note": "NGN bank payouts/refunds require allow_transfers=true in Settings → Plugins (moves operator funds)."})
 
 
 @safe
@@ -528,9 +565,9 @@ def checkout(args, **kwargs):
             card_id = (args.get("card_id") or "").strip()
             if not card_id:
                 return _err("saved_card checkout needs card_id from payment_options/saved_cards")
-            auth = store.get_card(args["email"].strip(), card_id)
+            auth = store.get_card(args["email"].strip(), card_id, conversation_id=cid)
             if not auth:
-                return _err("No saved card matches that card_id for this email", card_id=card_id)
+                return _err("No saved card matches that card_id for this conversation", card_id=card_id)
             args = dict(args, _saved_auth=auth, card_last4=auth.get("last4"))
     else:
         pay_cur = "USD"
@@ -601,14 +638,22 @@ def checkout(args, **kwargs):
         tx = payments.paystack_charge_authorization(
             key, args["email"].strip(), charge, pay_cur, auth["authorization_code"], pay_ref,
             {"order_id": order_id, "items": len(lines), "city": args["city"]})
+        san = payments.sanitize_authorization(tx.get("authorization") or auth) or {}
+        if auth.get("card_id"):
+            san["card_id"] = auth["card_id"]
+        if cid:
+            san["conversation_id"] = cid
         order.update(payment_reference=pay_ref, test_mode=key.startswith("sk_test"),
-                     authorization=payments.sanitize_authorization(tx.get("authorization") or auth))
+                     authorization=san)
         store.save_order(order)
         store.transact(lambda d: d["carts"].pop(cid, None))
         order = _apply_paystack_success(order, tx)
         if order.get("payment_status") == "paid":
+            view = dict(order.get("authorization") or auth)
+            if auth.get("card_id"):
+                view["card_id"] = auth["card_id"]
             return _ok(status="paid", order_id=order_id, amount=_money(charge, pay_cur), delivery_eta=eta,
-                       card=store.public_card(order.get("authorization") or auth),
+                       card=store.public_card(view),
                        items=[{"title": l["title"], "qty": l["qty"], "image": l.get("image")} for l in lines],
                        note="Charged saved card; Paystack verify matched amount/currency.")
         return _ok(status=order.get("payment_status") or "pending", order_id=order_id,
@@ -634,17 +679,8 @@ _CRYPTO_FAIL = {"failed", "expired", "refunded"}
 
 
 def _transfers_allowed() -> bool:
-    """Operator must opt in — transfers move money out of the Paystack balance."""
-    import os
-    for name in ("SHOPMATE_ALLOW_TRANSFERS", "PAYSTACK_ALLOW_TRANSFERS"):
-        v = os.environ.get(name) or providers.get_secret(name)
-        if v is None:
-            continue
-        if str(v).strip().lower() in ("1", "true", "yes", "on"):
-            return True
-        if str(v).strip().lower() in ("0", "false", "no", "off"):
-            return False
-    return bool(providers.setting("allow_transfers", False))
+    """Operator must opt in via the allow_transfers plugin setting (off by default)."""
+    return _setting_bool("allow_transfers", False)
 
 
 def _apply_paystack_success(order, tx):
@@ -655,19 +691,23 @@ def _apply_paystack_success(order, tx):
     currency_ok = (tx.get("currency") or "").upper() == (order.get("pay_currency") or "").upper()
     if st == "success" and amount_ok and currency_ok:
         auth = payments.sanitize_authorization(tx.get("authorization") or {})
+        prev_id = (order.get("authorization") or {}).get("card_id")
+        if auth and prev_id:
+            auth = dict(auth, card_id=prev_id)
         def mut(o):
             o["payment_status"] = "paid"
             o["delivery_status"] = "processing"
             o["paid_at"] = int(time.time())
             o["paystack_transaction_id"] = tx.get("id")
             if auth:
-                o["authorization"] = auth
+                kept = (o.get("authorization") or {}).get("card_id")
+                o["authorization"] = dict(auth, **({"card_id": kept} if kept else {}))
             return o
         updated = store.update_order(oid, mut) or order
         if auth and auth.get("reusable"):
             email = (order.get("customer") or {}).get("email") or ""
             if email:
-                store.save_card(email, auth)
+                store.save_card(email, auth, conversation_id=order.get("conversation_id"))
         return updated
     if st in ("failed", "abandoned", "reversed"):
         def mut(o):
@@ -754,12 +794,19 @@ def order_status(args, **kwargs):
     limit = args.get("limit") or 10
     cid = _cid(kwargs)
 
+    cross = _setting_bool("allow_cross_conversation_lookup", False)
     if oid:
         orders = store.find_orders(order_id=oid)
     elif email:
-        orders = store.find_orders(email=email, limit=limit)
+        if cross:
+            orders = store.find_orders(email=email, limit=limit)
+        else:
+            orders = store.find_orders(email=email, conversation_id=cid, limit=limit)
     elif phone:
-        orders = store.find_orders(phone=phone, limit=limit)
+        if cross:
+            orders = store.find_orders(phone=phone, limit=limit)
+        else:
+            orders = store.find_orders(phone=phone, conversation_id=cid, limit=limit)
     else:
         orders = store.find_orders(conversation_id=cid, limit=limit)
 
@@ -798,27 +845,29 @@ def order_status(args, **kwargs):
 
 @safe
 def saved_cards(args, **kwargs):
-    """List or remove reusable Paystack authorizations for a customer email."""
+    """List or remove reusable Paystack authorizations for this conversation."""
     email = (args.get("email") or "").strip()
     if not email or not _EMAIL.match(email):
         return _err("A valid email is required")
+    cid = _cid(kwargs)
     action = (args.get("action") or "list").strip().lower()
     if action == "list":
-        cards = store.list_cards(email)
+        cards = store.list_cards(email, conversation_id=cid)
         return _ok(email=email, cards=cards, count=len(cards),
-                   note="Use payment_method=saved_card with card_id at checkout (confirm=true).")
+                   note="Use payment_method=saved_card with card_id at checkout. "
+                        "Hermes will ask you to approve the charge. Cards are bound to this conversation.")
     if action == "remove":
         card_id = (args.get("card_id") or "").strip()
         if not card_id:
             return _err("card_id is required to remove a saved card")
-        ok = store.remove_card(email, card_id)
+        ok = store.remove_card(email, card_id, conversation_id=cid)
         if not ok:
-            return _err("No saved card matched that card_id", card_id=card_id)
-        return _ok(removed=True, card_id=card_id, cards=store.list_cards(email))
+            return _err("No saved card matched that card_id for this conversation", card_id=card_id)
+        return _ok(removed=True, card_id=card_id, cards=store.list_cards(email, conversation_id=cid))
     if action == "bin":
         # Optional Card BIN lookup for display enrichment
         card_id = (args.get("card_id") or "").strip()
-        auth = store.get_card(email, card_id) if card_id else None
+        auth = store.get_card(email, card_id, conversation_id=cid) if card_id else None
         bin6 = (args.get("bin") or (auth or {}).get("bin") or "").strip()
         key = providers.get_secret("PAYSTACK_SECRET_KEY")
         if not key:
@@ -837,7 +886,7 @@ def request_refund(args, **kwargs):
 
     refund_method:
       - paystack (default): POST /refund to original card/channel
-      - bank_transfer: NGN payout via Transfers API (requires SHOPMATE_ALLOW_TRANSFERS=1)
+      - bank_transfer: NGN payout via Transfers API (requires allow_transfers=true)
       - crypto: manual payout address (unchanged)
     For bank_transfer, first call resolves the account and returns the account_name; the
     agent MUST show that name and amount, then confirm=true with the same details.
@@ -851,6 +900,9 @@ def request_refund(args, **kwargs):
     order = store.get_order(oid)
     if not order:
         return _err("Order not found", order_id=oid)
+    cid = _cid(kwargs)
+    if str(order.get("conversation_id") or "") != cid:
+        return _err("This order belongs to a different conversation.", order_id=oid)
 
     pay_st = order.get("payment_status")
     del_st = order.get("delivery_status")
@@ -891,7 +943,7 @@ def request_refund(args, **kwargs):
     if refund_method == "bank_transfer":
         if not _transfers_allowed():
             return _err(
-                "Bank transfers are disabled. Set SHOPMATE_ALLOW_TRANSFERS=1 to allow NGN payouts from the Paystack balance.",
+                "Bank transfers are disabled. Set allow_transfers to true in Settings → Plugins to allow NGN payouts from the Paystack balance.",
                 order_id=oid)
         key = providers.get_secret("PAYSTACK_SECRET_KEY")
         if not key:
@@ -941,7 +993,10 @@ def request_refund(args, **kwargs):
                        instruction="Show the resolved account_name and amount. Call again with confirm=true only after the customer confirms both.")
         # Require the confirmed name to match (agent passes back account_name)
         confirmed_name = (args.get("account_name") or "").strip()
-        if confirmed_name and confirmed_name.lower() != account_name.lower():
+        if not confirmed_name:
+            return _err("account_name is required to confirm a bank_transfer refund.",
+                        resolved=account_name)
+        if confirmed_name.lower() != account_name.lower():
             return _err("account_name does not match the resolved name.",
                         resolved=account_name, provided=confirmed_name)
         # Create recipient + initiate transfer

@@ -32,9 +32,10 @@ def register(ctx):
     providers.bind(ctx)
     for name, schema, handler in TOOLS:
         ctx.register_tool(name=name, toolset="shopmate", schema=schema, handler=handler)
+    ctx.register_hook("pre_tool_call", tools.pre_tool_call)
     skills_dir = Path(__file__).parent / "skills"
     for child in sorted(skills_dir.iterdir()):
         skill_md = child / "SKILL.md"
         if child.is_dir() and skill_md.exists():
             ctx.register_skill(child.name, skill_md)
-    logger.debug("shopmate registered %d tools", len(TOOLS))
+    logger.debug("shopmate registered %d tools and pre_tool_call hook", len(TOOLS))

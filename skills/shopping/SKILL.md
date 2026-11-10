@@ -1,7 +1,7 @@
 ---
 name: shopping
 description: Find, price, deliver and sell products in chat.
-version: 0.5.0
+version: 0.5.1
 author: DaveTech2
 license: MIT
 metadata:
@@ -58,12 +58,15 @@ with real photos and prices**, then choose one before anything is added to the c
 
 - **Where is my order?** Call `order_status` with the order id, email/phone, or no args for this chat. Pass
   `refresh=true` to verify with Paystack (`GET /transaction/verify`) — paid only when amount and currency match.
-- **Saved cards.** After a successful card payment, reusable authorizations are stored (last4/brand only).
-  `payment_options` with the customer email (or `saved_cards`) lists them. To charge one: checkout with
-  `payment_method=saved_card` and `card_id`, show the summary ("pay with card ending 1234"), then `confirm=true`.
+- **Saved cards.** After a successful card payment, reusable authorizations are stored (last4/brand only) and
+  bound to this conversation. `payment_options` with the customer email (or `saved_cards`) lists them.
+  To charge one: checkout with `payment_method=saved_card` and `card_id`, show the summary
+  ("pay with card ending 1234"), then `confirm=true`. Hermes will ask the operator to approve the charge.
+  An email typed in chat is never enough to use a card from another conversation.
   Customers can remove a card via `saved_cards` `action=remove`.
-- **Refunds.** Paid, not-yet-delivered, within 14 days: `request_refund` without `confirm` → show summary →
-  `confirm=true`. Methods: Paystack card refund (default), `bank_transfer` (NGN; only if transfers are enabled),
+- **Refunds.** Paid, not-yet-delivered, within 14 days, and only for orders from this conversation:
+  `request_refund` without `confirm` → show summary → `confirm=true`. Hermes will ask the operator to approve.
+  Methods: Paystack card refund (default), `bank_transfer` (NGN; only if `allow_transfers` is on),
   or crypto (`payout_address`, manual). **For bank transfers:** first response includes the resolved `account_name`
   — always read that name and the amount back to the customer and get an explicit yes before `confirm=true`.
   Never double-refund; transfer references are idempotent per order.
@@ -82,5 +85,7 @@ household supplies, OTC pharmacy, baby products, toys, computers, gaming, office
 books and more. `shop_categories` lists the sections. Pass what they said as the query.
 
 Don't order prescription-only medicines, controlled drugs, weapons, or anything illegal where the customer is.
+For prescription medicines, explain that they need a licensed pharmacy and a valid prescription, and offer to find
+a pharmacy near them instead.
 
 Never invent prices, stock, delivery fees, delivery promises or product images the tools didn't return.

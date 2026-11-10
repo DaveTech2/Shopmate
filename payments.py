@@ -277,7 +277,10 @@ def apply_webhook_event(event: dict, *, get_order, update_order, save_card=None,
             if auth and auth.get("reusable") and save_card:
                 email = ((order.get("customer") or {}).get("email") or (data.get("customer") or {}).get("email") or "")
                 if email:
-                    save_card(email, auth)
+                    try:
+                        save_card(email, auth, conversation_id=order.get("conversation_id"))
+                    except TypeError:
+                        save_card(email, auth)
             out.update(handled=True, order_id=ref, payment_status="paid")
         else:
             out.update(error="amount/currency/status mismatch", reference=ref)
